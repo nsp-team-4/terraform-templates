@@ -71,6 +71,7 @@ resource "azurerm_container_group" "this" {
   depends_on = [
     azurerm_resource_group.this,
     azurerm_virtual_network.this,
+    azurerm_subnet.default,
   ]
 }
 
