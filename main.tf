@@ -44,7 +44,7 @@ variable "eventhub_namespace_name" {
 
 # Resource group
 resource "azurerm_resource_group" "this" {
-  name     = "north-sea-port-tf-test"
+  name     = "north-sea-port-tf-test" # TODO: Change this name.
   location = "westeurope"
 }
 
@@ -91,7 +91,7 @@ resource "azurerm_eventhub_namespace" "this" {
 
 # Authorization Rule
 resource "azurerm_eventhub_namespace_authorization_rule" "this" {
-  name                = "test123" # TODO: Change this name
+  name                = "test123" # TODO: Change this name.
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = azurerm_resource_group.this.name
   manage              = true
@@ -302,7 +302,7 @@ resource "azurerm_private_endpoint" "events" {
   subnet_id           = azurerm_subnet.events.id
   private_service_connection {
     is_manual_connection           = false
-    name                           = "eventhubs-endpoint_aa87db1f-f2cd-4977-ba86-15918da44037"
+    name                           = "eventhubs-endpoint_aa87db1f-f2cd-4977-ba86-15918da44037" # TODO: Change this name.
     private_connection_resource_id = azurerm_eventhub_namespace.this.id
     subresource_names              = ["namespace"]
   }
@@ -320,7 +320,7 @@ resource "azurerm_private_endpoint" "storage" {
   subnet_id           = azurerm_subnet.events.id
   private_service_connection {
     is_manual_connection           = false
-    name                           = "storage-endpoint_3e2f1f95-24ae-413c-9196-0a736fcd2013"
+    name                           = "storage-endpoint_3e2f1f95-24ae-413c-9196-0a736fcd2013" # TODO: Change this name.
     private_connection_resource_id = azurerm_storage_account.events.id
     subresource_names              = ["blob"]
   }
