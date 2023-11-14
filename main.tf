@@ -18,7 +18,7 @@ provider "azurerm" {
 variable "allowed_ip_prefixes" {
   description = "The IP prefixes that are allowed to connect to the AIS receiver container."
   type        = list(string)
-  default     = [
+  default = [
     "86.92.2.242",
     "212.115.197.130",
   ]
@@ -180,10 +180,12 @@ resource "azurerm_lb" "this" {
 
 # Backend pool
 resource "azurerm_lb_backend_address_pool" "this" {
-  loadbalancer_id = azurerm_lb.this.id
-  name            = "ais-backend-pool"
+  loadbalancer_id    = azurerm_lb.this.id
+  name               = "ais-backend-pool"
+  virtual_network_id = azurerm_virtual_network.this.id
   depends_on = [
     azurerm_lb.this,
+    azurerm_virtual_network.this,
   ]
 }
 
