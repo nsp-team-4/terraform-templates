@@ -132,28 +132,6 @@ resource "azurerm_eventhub_authorization_rule" "this" {
   ]
 }
 
-# The default consumer group
-resource "azurerm_eventhub_consumer_group" "default" {
-  eventhub_name       = azurerm_eventhub.this.name
-  name                = "default"
-  namespace_name      = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_eventhub.this,
-  ]
-}
-
-# Consumer group for events
-resource "azurerm_eventhub_consumer_group" "events" {
-  eventhub_name       = azurerm_eventhub.this.name
-  name                = "stream_ais-event-hub-consumer-group"
-  namespace_name      = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_eventhub.this,
-  ]
-}
-
 # Load balancer
 resource "azurerm_lb" "this" {
   location            = azurerm_resource_group.this.location
