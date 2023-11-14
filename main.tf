@@ -133,7 +133,7 @@ resource "azurerm_eventhub" "this" {
 resource "azurerm_eventhub_authorization_rule" "this" {
   eventhub_name       = azurerm_eventhub.this.name
   listen              = true
-  name                = "stream_ais-event-hub_policy"
+  name                = "stream_ais-event-hub-policy"
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = azurerm_resource_group.this.name
   depends_on = [
@@ -155,7 +155,7 @@ resource "azurerm_eventhub_consumer_group" "default" {
 # Consumer group for events
 resource "azurerm_eventhub_consumer_group" "events" {
   eventhub_name       = azurerm_eventhub.this.name
-  name                = "stream_ais-event-hub_consumer_group"
+  name                = "stream_ais-event-hub-consumer-group"
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = azurerm_resource_group.this.name
   depends_on = [
