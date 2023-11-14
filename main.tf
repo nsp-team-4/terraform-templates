@@ -93,17 +93,24 @@ resource "azurerm_eventhub_namespace" "this" {
   maximum_throughput_units      = 2
   auto_inflate_enabled          = true
   public_network_access_enabled = false
-  zone_redundant                = false
+
   network_rulesets {
-    default_action                 = "Allow"
-    public_network_access_enabled  = false
-    trusted_service_access_enabled = true
+    default_action = "Deny"
+
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.default.id
+    }
+
     virtual_network_rule {
       subnet_id = azurerm_subnet.events.id
     }
+
+    public_network_access_enabled  = false
   }
   depends_on = [
     azurerm_resource_group.this,
+    azurerm_subnet.default,
+    azurerm_subnet.events,
   ]
 }
 
@@ -149,8 +156,8 @@ resource "azurerm_lb" "this" {
 
 # Backend pool
 resource "azurerm_lb_backend_address_pool" "this" {
-  loadbalancer_id    = azurerm_lb.this.id
-  name               = "ais-backend-pool"
+  loadbalancer_id = azurerm_lb.this.id
+  name            = "ais-backend-pool"
   depends_on = [
     azurerm_lb.this,
   ]
@@ -361,6 +368,7 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
+    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
   delegation {
