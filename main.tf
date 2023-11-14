@@ -86,14 +86,22 @@ resource "azurerm_container_group" "this" {
 
 # Event Hub Namespace
 resource "azurerm_eventhub_namespace" "this" {
-  auto_inflate_enabled          = true
-  maximum_throughput_units      = 2
   location                      = azurerm_resource_group.this.location
   name                          = var.eventhub_namespace_name
   resource_group_name           = azurerm_resource_group.this.name
   sku                           = "Standard"
+  maximum_throughput_units      = 2
+  auto_inflate_enabled          = true
   public_network_access_enabled = false
   zone_redundant                = false
+  network_rulesets {
+    default_action                 = "Allow"
+    public_network_access_enabled  = false
+    trusted_service_access_enabled = true
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.events.id
+    }
+  }
   depends_on = [
     azurerm_resource_group.this,
   ]
@@ -120,18 +128,7 @@ resource "azurerm_eventhub" "this" {
   }
   depends_on = [
     azurerm_eventhub_namespace.this,
-  ]
-}
-
-# Authorization rule for the event hub
-resource "azurerm_eventhub_authorization_rule" "this" {
-  eventhub_name       = azurerm_eventhub.this.name
-  listen              = true
-  name                = "stream_ais-event-hub-policy"
-  namespace_name      = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_eventhub.this,
+    azurerm_storage_account.events,
   ]
 }
 
@@ -152,8 +149,8 @@ resource "azurerm_lb" "this" {
 
 # Backend pool
 resource "azurerm_lb_backend_address_pool" "this" {
-  loadbalancer_id = azurerm_lb.this.id
-  name            = "ais-backend-pool"
+  loadbalancer_id    = azurerm_lb.this.id
+  name               = "ais-backend-pool"
   depends_on = [
     azurerm_lb.this,
   ]
@@ -164,8 +161,9 @@ resource "azurerm_lb_backend_address_pool_address" "this" {
   backend_address_pool_id = azurerm_lb_backend_address_pool.this.id
   name                    = "container-group-address"
   virtual_network_id      = azurerm_virtual_network.this.id
-  ip_address              = "10.0.0.4"
+  ip_address              = azurerm_container_group.this.ip_address
   depends_on = [
+    azurerm_lb_backend_address_pool.this,
     azurerm_virtual_network.this,
   ]
 }
@@ -225,11 +223,13 @@ resource "azurerm_private_dns_zone" "storage" {
 
 # DNS record for the storage account
 resource "azurerm_private_dns_a_record" "storage" {
-  name                = "nspstoragednsrecord"
-  records             = ["10.0.1.5"]
+  name = "nspstoragednsrecord"
+  records = [
+    "10.0.1.5",
+  ]
   resource_group_name = azurerm_resource_group.this.name
   ttl                 = 3600
-  zone_name           = "privatelink.blob.core.windows.net"
+  zone_name           = azurerm_private_dns_zone.storage.name
   depends_on = [
     azurerm_private_dns_zone.storage,
   ]
@@ -238,7 +238,7 @@ resource "azurerm_private_dns_a_record" "storage" {
 # Virtual network link for the storage account
 resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
   name                  = "storage-virtual-network-link"
-  private_dns_zone_name = "privatelink.blob.core.windows.net"
+  private_dns_zone_name = azurerm_private_dns_zone.storage.name
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
   depends_on = [
@@ -258,11 +258,13 @@ resource "azurerm_private_dns_zone" "events" {
 
 # DNS record for the event hub
 resource "azurerm_private_dns_a_record" "events" {
-  name                = azurerm_eventhub_namespace.this.name
-  records             = ["10.0.1.4"]
+  name = azurerm_eventhub_namespace.this.name
+  records = [
+    "10.0.1.4",
+  ]
   resource_group_name = azurerm_resource_group.this.name
   ttl                 = 3600
-  zone_name           = "privatelink.servicebus.windows.net"
+  zone_name           = azurerm_private_dns_zone.events.name
   depends_on = [
     azurerm_private_dns_zone.events,
   ]
@@ -271,7 +273,7 @@ resource "azurerm_private_dns_a_record" "events" {
 # Virtual network link for the event hub
 resource "azurerm_private_dns_zone_virtual_network_link" "events" {
   name                  = "events-virtual-network-link"
-  private_dns_zone_name = "privatelink.servicebus.windows.net"
+  private_dns_zone_name = azurerm_private_dns_zone.events.name
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
   depends_on = [
@@ -280,17 +282,20 @@ resource "azurerm_private_dns_zone_virtual_network_link" "events" {
   ]
 }
 
-# Private endpoint for the event hub
+# Private endpoint for the event hub namespace
 resource "azurerm_private_endpoint" "events" {
   location            = azurerm_container_group.this.location
   name                = "eventhubs-endpoint"
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.events.id
+
   private_service_connection {
     is_manual_connection           = false
     name                           = "eventhubs-private-endpoint"
     private_connection_resource_id = azurerm_eventhub_namespace.this.id
-    subresource_names              = ["namespace"]
+    subresource_names = [
+      "namespace",
+    ]
   }
   depends_on = [
     azurerm_eventhub_namespace.this,
@@ -304,11 +309,14 @@ resource "azurerm_private_endpoint" "storage" {
   name                = "storage-endpoint"
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.events.id
+
   private_service_connection {
     is_manual_connection           = false
     name                           = "storage-private-endpoint"
     private_connection_resource_id = azurerm_storage_account.events.id
-    subresource_names              = ["blob"]
+    subresource_names = [
+      "blob",
+    ]
   }
   depends_on = [
     azurerm_subnet.events,
@@ -331,7 +339,10 @@ resource "azurerm_public_ip" "this" {
 
 # Virtual network
 resource "azurerm_virtual_network" "this" {
-  address_space       = ["10.0.0.0/24", "10.0.1.0/24"]
+  address_space = [
+    "10.0.0.0/24",
+    "10.0.1.0/24",
+  ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
   resource_group_name = azurerm_resource_group.this.name
@@ -342,16 +353,23 @@ resource "azurerm_virtual_network" "this" {
 
 # Default subnet
 resource "azurerm_subnet" "default" {
-  address_prefixes     = ["10.0.0.0/24"]
-  name                 = "default"
-  resource_group_name  = azurerm_resource_group.this.name
-  service_endpoints    = ["Microsoft.KeyVault", "Microsoft.Storage"]
-  virtual_network_name = "north-sea-port-vnet"
+  name = "default"
+  address_prefixes = [
+    "10.0.0.0/24",
+  ]
+  resource_group_name = azurerm_resource_group.this.name
+  service_endpoints = [
+    "Microsoft.KeyVault",
+    "Microsoft.Storage",
+  ]
+  virtual_network_name = azurerm_virtual_network.this.name
   delegation {
     name = "Microsoft.ContainerInstance.containerGroups"
     service_delegation {
-      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
-      name    = "Microsoft.ContainerInstance/containerGroups"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action",
+      ]
+      name = "Microsoft.ContainerInstance/containerGroups"
     }
   }
   depends_on = [
@@ -371,11 +389,16 @@ resource "azurerm_subnet_network_security_group_association" "this" {
 
 # Events subnet
 resource "azurerm_subnet" "events" {
-  address_prefixes     = ["10.0.1.0/24"]
   name                 = "eventhubs-subnet"
   resource_group_name  = azurerm_resource_group.this.name
-  service_endpoints    = ["Microsoft.EventHub", "Microsoft.Storage"]
-  virtual_network_name = "north-sea-port-vnet"
+  virtual_network_name = azurerm_virtual_network.this.name
+  address_prefixes = [
+    "10.0.1.0/24",
+  ]
+  service_endpoints = [
+    "Microsoft.EventHub",
+    "Microsoft.Storage",
+  ]
   depends_on = [
     azurerm_virtual_network.this,
   ]
@@ -383,15 +406,29 @@ resource "azurerm_subnet" "events" {
 
 # Storage account for the events
 resource "azurerm_storage_account" "events" {
-  account_replication_type         = "LRS"
-  account_tier                     = "Standard"
-  cross_tenant_replication_enabled = false
-  default_to_oauth_authentication  = true
-  location                         = azurerm_resource_group.this.location
-  name                             = var.storage_account_name
-  queue_encryption_key_type        = "Account"
-  resource_group_name              = azurerm_resource_group.this.name
-  table_encryption_key_type        = "Account"
+  account_replication_type  = "LRS"
+  account_tier              = "Standard"
+  access_tier               = "Cool"
+  location                  = azurerm_resource_group.this.location
+  name                      = var.storage_account_name
+  queue_encryption_key_type = "Account"
+  resource_group_name       = azurerm_resource_group.this.name
+  table_encryption_key_type = "Account"
+
+  blob_properties {
+    delete_retention_policy {
+      days = 1
+    }
+  }
+
+  network_rules {
+    default_action = "Allow"
+    ip_rules       = var.allowed_ip_prefixes
+    virtual_network_subnet_ids = [ # TODO: Check if this is needed
+      azurerm_subnet.default.id,
+      azurerm_subnet.events.id,
+    ]
+  }
   depends_on = [
     azurerm_resource_group.this,
   ]
