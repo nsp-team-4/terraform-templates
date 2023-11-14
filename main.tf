@@ -64,6 +64,9 @@ resource "azurerm_container_group" "this" {
     image  = "auxority/ais-receiver"
     memory = 1
     name   = "ais-receiver"
+    secure_environment_variables = {
+      ENDPOINT_CONNECTION_STRING = azurerm_eventhub_namespace.this.default_primary_connection_string
+    }
     ports {
       port = 2001
     }
@@ -80,28 +83,16 @@ resource "azurerm_container_group" "this" {
 
 # Event Hub Namespace
 resource "azurerm_eventhub_namespace" "this" {
-  auto_inflate_enabled     = true
-  maximum_throughput_units = 2
-  location                 = azurerm_resource_group.this.location
-  name                     = var.eventhub_namespace_name
-  resource_group_name      = azurerm_resource_group.this.name
-  sku                      = "Standard"
-  zone_redundant           = true
+  auto_inflate_enabled          = true
+  maximum_throughput_units      = 2
+  location                      = azurerm_resource_group.this.location
+  name                          = var.eventhub_namespace_name
+  resource_group_name           = azurerm_resource_group.this.name
+  sku                           = "Standard"
+  public_network_access_enabled = false
+  zone_redundant                = false
   depends_on = [
     azurerm_resource_group.this,
-  ]
-}
-
-# Authorization Rule
-resource "azurerm_eventhub_namespace_authorization_rule" "this" {
-  name                = "ais-eventhub-auth-rule"
-  namespace_name      = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  manage              = true
-  listen              = true
-  send                = true
-  depends_on = [
-    azurerm_eventhub_namespace.this,
   ]
 }
 
