@@ -182,9 +182,18 @@ resource "azurerm_lb" "this" {
 resource "azurerm_lb_backend_address_pool" "this" {
   loadbalancer_id    = azurerm_lb.this.id
   name               = "ais-backend-pool"
-  virtual_network_id = azurerm_virtual_network.this.id
   depends_on = [
     azurerm_lb.this,
+  ]
+}
+
+# Backend pool address
+resource "azurerm_lb_backend_address_pool_address" "this" {
+  backend_address_pool_id = azurerm_lb_backend_address_pool.this.id
+  name = "container-group-address"
+  virtual_network_id = azurerm_virtual_network.this.id
+  ip_address = "10.0.0.4"
+  depends_on = [ 
     azurerm_virtual_network.this,
   ]
 }
