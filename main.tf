@@ -14,37 +14,40 @@ provider "azurerm" {
   features {}
 }
 
-# Allowed IP prefix (CIDR notation)
-variable "allowed_ip_prefix" {
-  description = "The IP prefix that is allowed to connect to the AIS receiver."
-  type        = string
-  default     = "86.92.2.242" # TODO: Add NSP IP here using a comma to separate the two IP's.
+# Allowed IP prefixes (CIDR notation)
+variable "allowed_ip_prefixes" {
+  description = "The IP prefixes that are allowed to connect to the AIS receiver container."
+  type        = list(string)
+  default     = [
+    "86.92.2.242",
+    "212.115.197.130",
+  ]
 }
 
 # Domain name label for the public IP
 variable "domain_name_label" {
   description = "The domain name label for the public IP."
   type        = string
-  default     = "ais-receiver-test123" # TODO: Change this name.
+  default     = "ais-receiver"
 }
 
 # Storage account name for events
 variable "storage_account_name" {
   description = "The name of the storage account for events."
   type        = string
-  default     = "nspaisaccount123" # TODO: Change this name.
+  default     = "nspaisstorageaccount"
 }
 
 # Event hub namespace name
 variable "eventhub_namespace_name" {
   description = "The name of the event hub namespace."
   type        = string
-  default     = "nspeventhubs123" # TODO: Change this name.
+  default     = "nspaisevents"
 }
 
 # Resource group
 resource "azurerm_resource_group" "this" {
-  name     = "north-sea-port-tf-test" # TODO: Change this name.
+  name     = "north-sea-port"
   location = "westeurope"
 }
 
@@ -91,7 +94,7 @@ resource "azurerm_eventhub_namespace" "this" {
 
 # Authorization Rule
 resource "azurerm_eventhub_namespace_authorization_rule" "this" {
-  name                = "test123" # TODO: Change this name.
+  name                = "ais-eventhub-auth-rule"
   namespace_name      = azurerm_eventhub_namespace.this.name
   resource_group_name = azurerm_resource_group.this.name
   manage              = true
@@ -221,7 +224,7 @@ resource "azurerm_network_security_rule" "this" {
   priority                    = 100
   protocol                    = "Tcp"
   resource_group_name         = azurerm_resource_group.this.name
-  source_address_prefix       = var.allowed_ip_prefix
+  source_address_prefixes     = var.allowed_ip_prefixes
   source_port_range           = "*"
   depends_on = [
     azurerm_network_security_group.this,
@@ -251,7 +254,7 @@ resource "azurerm_private_dns_a_record" "storage" {
 
 # Virtual network link for the storage account
 resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
-  name                  = "2d4t5aj7drtho" # TODO: Change this name.
+  name                  = "storage-virtual-network-link"
   private_dns_zone_name = "privatelink.blob.core.windows.net"
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
@@ -284,7 +287,7 @@ resource "azurerm_private_dns_a_record" "events" {
 
 # Virtual network link for the event hub
 resource "azurerm_private_dns_zone_virtual_network_link" "events" {
-  name                  = "2d4t5aj7drtho" # TODO: Change this name.
+  name                  = "events-virtual-network-link"
   private_dns_zone_name = "privatelink.servicebus.windows.net"
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
@@ -302,7 +305,7 @@ resource "azurerm_private_endpoint" "events" {
   subnet_id           = azurerm_subnet.events.id
   private_service_connection {
     is_manual_connection           = false
-    name                           = "eventhubs-endpoint_aa87db1f-f2cd-4977-ba86-15918da44037" # TODO: Change this name.
+    name                           = "eventhubs-private-endpoint"
     private_connection_resource_id = azurerm_eventhub_namespace.this.id
     subresource_names              = ["namespace"]
   }
@@ -320,7 +323,7 @@ resource "azurerm_private_endpoint" "storage" {
   subnet_id           = azurerm_subnet.events.id
   private_service_connection {
     is_manual_connection           = false
-    name                           = "storage-endpoint_3e2f1f95-24ae-413c-9196-0a736fcd2013" # TODO: Change this name.
+    name                           = "storage-private-endpoint"
     private_connection_resource_id = azurerm_storage_account.events.id
     subresource_names              = ["blob"]
   }
