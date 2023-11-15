@@ -93,25 +93,25 @@ resource "azurerm_eventhub_namespace" "this" {
   maximum_throughput_units      = 2
   auto_inflate_enabled          = true
   
-  # network_rulesets {
-  #   default_action = "Deny"
+  network_rulesets {
+    default_action = "Deny"
 
-  #   ip_rule { # Temporary rule for debugging
-  #     ip_mask = var.allowed_ip_prefixes[0]
-  #   }
+    ip_rule { # Temporary rule for debugging
+      ip_mask = var.allowed_ip_prefixes[0]
+    }
 
-  #   ip_rule { # Temporary rule for debugging
-  #     ip_mask = var.allowed_ip_prefixes[1]
-  #   }
+    ip_rule { # Temporary rule for debugging
+      ip_mask = var.allowed_ip_prefixes[1]
+    }
 
-  #   virtual_network_rule {
-  #     subnet_id = azurerm_subnet.default.id
-  #   }
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.default.id
+    }
 
-  #   virtual_network_rule {
-  #     subnet_id = azurerm_subnet.events.id
-  #   }
-  # }
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.events.id
+    }
+  }
 
   depends_on = [
     azurerm_resource_group.this,
