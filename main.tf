@@ -28,6 +28,10 @@ resource "azurerm_container_group" "this" {
   os_type             = "Linux"
   resource_group_name = azurerm_resource_group.this.name
   restart_policy      = "OnFailure"
+  subnet_ids = [
+    azurerm_subnet.default.id,
+  ]
+
   container {
     cpu    = 1
     image  = "auxority/ais-receiver"
@@ -39,13 +43,12 @@ resource "azurerm_container_group" "this" {
     secure_environment_variables = {
       ENDPOINT_CONNECTION_STRING = azurerm_eventhub_namespace.this.default_primary_connection_string
     }
+
     ports {
       port = 2001
     }
   }
-  subnet_ids = [
-    azurerm_subnet.default.id,
-  ]
+
   depends_on = [
     azurerm_resource_group.this,
     azurerm_virtual_network.this,
@@ -98,6 +101,7 @@ resource "azurerm_eventhub" "this" {
     encoding            = "Avro"
     interval_in_seconds = 60
     size_limit_in_bytes = 62914560
+
     destination {
       archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
       blob_container_name = "decoded-messages"
@@ -105,6 +109,7 @@ resource "azurerm_eventhub" "this" {
       storage_account_id  = azurerm_storage_account.events.id
     }
   }
+
   depends_on = [
     azurerm_eventhub_namespace.this,
     azurerm_storage_account.events,
@@ -117,10 +122,12 @@ resource "azurerm_lb" "this" {
   name                = "ais-load-balancer"
   resource_group_name = azurerm_resource_group.this.name
   sku                 = "Standard"
+
   frontend_ip_configuration {
     name                 = "ais-frontend-ip-config"
     public_ip_address_id = azurerm_public_ip.this.id
   }
+
   depends_on = [
     azurerm_resource_group.this,
   ]
@@ -276,6 +283,7 @@ resource "azurerm_private_endpoint" "events" {
       "namespace",
     ]
   }
+
   depends_on = [
     azurerm_eventhub_namespace.this,
     azurerm_subnet.events,
@@ -297,6 +305,7 @@ resource "azurerm_private_endpoint" "storage" {
       "blob",
     ]
   }
+
   depends_on = [
     azurerm_subnet.events,
     azurerm_storage_account.events,
@@ -340,11 +349,12 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
-    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
+
   delegation {
     name = "Microsoft.ContainerInstance.containerGroups"
+
     service_delegation {
       actions = [
         "Microsoft.Network/virtualNetworks/subnets/action",
@@ -352,6 +362,7 @@ resource "azurerm_subnet" "default" {
       name = "Microsoft.ContainerInstance/containerGroups"
     }
   }
+
   depends_on = [
     azurerm_virtual_network.this,
   ]

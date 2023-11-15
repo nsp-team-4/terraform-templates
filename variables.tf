@@ -19,12 +19,12 @@ variable "domain_name_label" {
 variable "storage_account_name" {
   description = "The name of the storage account for events."
   type        = string
-  default     = "nspaisstorageaccount"
+  default     = "storagenspais"
 }
 
 # Event hub namespace name
 variable "eventhub_namespace_name" {
   description = "The name of the event hub namespace."
   type        = string
-  default     = "nspaisevents"
+  default     = "ais-events"
 }
