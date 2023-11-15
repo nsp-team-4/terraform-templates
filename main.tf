@@ -70,8 +70,8 @@ resource "azurerm_eventhub_namespace" "this" {
       ip_mask = var.allowed_ips[0]
     }
 
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.default.id
+    ip_rule {
+      ip_mask = "10.0.0.0/24" # TODO: Test if this allows access from the virtual network.
     }
 
     virtual_network_rule {
@@ -81,7 +81,6 @@ resource "azurerm_eventhub_namespace" "this" {
 
   depends_on = [
     azurerm_resource_group.this,
-    azurerm_subnet.default,
     azurerm_subnet.events,
   ]
 }
@@ -279,8 +278,8 @@ resource "azurerm_private_dns_a_record" "events" {
 # Virtual network link for the event hub namespace
 resource "azurerm_private_dns_zone_virtual_network_link" "events" {
   name                  = "events-virtual-network-link"
-  private_dns_zone_name = azurerm_private_dns_zone.events.name
   resource_group_name   = azurerm_resource_group.this.name
+  private_dns_zone_name = azurerm_private_dns_zone.events.name
   virtual_network_id    = azurerm_virtual_network.this.id
   depends_on = [
     azurerm_private_dns_zone.events,
@@ -348,7 +347,6 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
-    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
 
@@ -397,13 +395,13 @@ resource "azurerm_subnet" "events" {
 
 # Storage account for the events
 resource "azurerm_storage_account" "events" {
-  name                      = var.storage_account_name
-  resource_group_name       = azurerm_resource_group.this.name
-  location                  = azurerm_resource_group.this.location
-  account_kind              = "BlobStorage" # TODO: Maybe this should be left out
-  account_tier              = "Standard"
-  account_replication_type  = "LRS"
-  access_tier               = "Cool"
+  name                     = var.storage_account_name
+  resource_group_name      = azurerm_resource_group.this.name
+  location                 = azurerm_resource_group.this.location
+  account_kind             = "BlobStorage" # TODO: Maybe this should be left out
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  access_tier              = "Cool"
   # queue_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
   # table_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
 
