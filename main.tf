@@ -69,7 +69,7 @@ resource "azurerm_eventhub_namespace" "this" {
     default_action = "Deny"
 
     ip_rule { # Temporary rule for debugging
-      ip_mask = var.allowed_ip_prefixes[0]
+      ip_mask = var.allowed_ips[0]
     }
 
     virtual_network_rule {
@@ -191,7 +191,7 @@ resource "azurerm_network_security_rule" "this" {
   priority                    = 100
   protocol                    = "Tcp"
   resource_group_name         = azurerm_resource_group.this.name
-  source_address_prefixes     = var.allowed_ip_prefixes
+  source_address_prefixes     = var.allowed_ips
   source_port_range           = "*"
   depends_on = [
     azurerm_network_security_group.this,
@@ -414,7 +414,7 @@ resource "azurerm_storage_account" "events" {
 
   network_rules {
     default_action = "Deny"
-    ip_rules       = var.allowed_ip_prefixes
+    ip_rules       = var.allowed_ips
   }
 
   depends_on = [

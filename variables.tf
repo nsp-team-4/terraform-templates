@@ -1,5 +1,5 @@
 # Allowed IP prefixes (CIDR notation)
-variable "allowed_ip_prefixes" {
+variable "allowed_ips" {
   description = "The IP prefixes that are allowed to connect to the AIS receiver container."
   type        = list(string)
   default = [
