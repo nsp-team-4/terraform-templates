@@ -94,19 +94,6 @@ resource "azurerm_eventhub_namespace" "this" {
   auto_inflate_enabled          = true
   public_network_access_enabled = false
 
-  network_rulesets {
-    default_action = "Deny"
-
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.default.id
-    }
-
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.events.id
-    }
-
-    public_network_access_enabled  = false
-  }
   depends_on = [
     azurerm_resource_group.this,
     azurerm_subnet.default,
@@ -430,13 +417,10 @@ resource "azurerm_storage_account" "events" {
   }
 
   network_rules {
-    default_action = "Allow"
+    default_action = "Deny"
     ip_rules       = var.allowed_ip_prefixes
-    virtual_network_subnet_ids = [ # TODO: Check if this is needed
-      azurerm_subnet.default.id,
-      azurerm_subnet.events.id,
-    ]
   }
+
   depends_on = [
     azurerm_resource_group.this,
   ]
