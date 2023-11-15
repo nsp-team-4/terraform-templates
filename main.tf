@@ -92,7 +92,17 @@ resource "azurerm_eventhub_namespace" "this" {
   sku                           = "Standard"
   maximum_throughput_units      = 2
   auto_inflate_enabled          = true
-  public_network_access_enabled = false
+  
+  network_rulesets {
+    default_action = "Deny"
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.default.id
+    }
+
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.events.id
+    }
+  }
 
   depends_on = [
     azurerm_resource_group.this,
@@ -108,6 +118,7 @@ resource "azurerm_eventhub" "this" {
   namespace_name      = azurerm_eventhub_namespace.this.name
   partition_count     = 1
   resource_group_name = azurerm_resource_group.this.name
+
   capture_description {
     enabled             = true
     encoding            = "Avro"
