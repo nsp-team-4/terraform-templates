@@ -14,37 +14,6 @@ provider "azurerm" {
   features {}
 }
 
-# Allowed IP prefixes (CIDR notation)
-variable "allowed_ip_prefixes" {
-  description = "The IP prefixes that are allowed to connect to the AIS receiver container."
-  type        = list(string)
-  default = [
-    "86.92.2.242",
-    "212.115.197.130",
-  ]
-}
-
-# Domain name label for the public IP
-variable "domain_name_label" {
-  description = "The domain name label for the public IP."
-  type        = string
-  default     = "ais-receiver"
-}
-
-# Storage account name for events
-variable "storage_account_name" {
-  description = "The name of the storage account for events."
-  type        = string
-  default     = "nspaisstorageaccount"
-}
-
-# Event hub namespace name
-variable "eventhub_namespace_name" {
-  description = "The name of the event hub namespace."
-  type        = string
-  default     = "nspaisevents"
-}
-
 # Resource group
 resource "azurerm_resource_group" "this" {
   name     = "north-sea-port"
@@ -86,22 +55,18 @@ resource "azurerm_container_group" "this" {
 
 # Event Hub Namespace
 resource "azurerm_eventhub_namespace" "this" {
-  location                      = azurerm_resource_group.this.location
-  name                          = var.eventhub_namespace_name
-  resource_group_name           = azurerm_resource_group.this.name
-  sku                           = "Standard"
-  maximum_throughput_units      = 2
-  auto_inflate_enabled          = true
-  
+  location                 = azurerm_resource_group.this.location
+  name                     = var.eventhub_namespace_name
+  resource_group_name      = azurerm_resource_group.this.name
+  sku                      = "Standard"
+  maximum_throughput_units = 2
+  auto_inflate_enabled     = true
+
   network_rulesets {
     default_action = "Deny"
 
     ip_rule { # Temporary rule for debugging
       ip_mask = var.allowed_ip_prefixes[0]
-    }
-
-    ip_rule { # Temporary rule for debugging
-      ip_mask = var.allowed_ip_prefixes[1]
     }
 
     virtual_network_rule {
