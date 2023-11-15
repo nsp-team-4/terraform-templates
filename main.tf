@@ -50,9 +50,7 @@ resource "azurerm_container_group" "this" {
   }
 
   depends_on = [
-    azurerm_resource_group.this,
-    azurerm_virtual_network.this,
-    azurerm_subnet.default,
+    azurerm_eventhub_namespace.this,
   ]
 }
 
@@ -68,7 +66,7 @@ resource "azurerm_eventhub_namespace" "this" {
   network_rulesets {
     default_action = "Deny"
 
-    ip_rule { # Temporary rule for debugging
+    ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
       ip_mask = var.allowed_ips[0]
     }
 
@@ -233,63 +231,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
   ]
 }
 
-# Private DNS zone for the event hub
-resource "azurerm_private_dns_zone" "events" {
-  name                = "privatelink.servicebus.windows.net"
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
-}
-
-# DNS record for the event hub
-resource "azurerm_private_dns_a_record" "events" {
-  name = azurerm_eventhub_namespace.this.name
-  records = [
-    "10.0.1.4",
-  ]
-  resource_group_name = azurerm_resource_group.this.name
-  ttl                 = 3600
-  zone_name           = azurerm_private_dns_zone.events.name
-  depends_on = [
-    azurerm_private_dns_zone.events,
-  ]
-}
-
-# Virtual network link for the event hub
-resource "azurerm_private_dns_zone_virtual_network_link" "events" {
-  name                  = "events-virtual-network-link"
-  private_dns_zone_name = azurerm_private_dns_zone.events.name
-  resource_group_name   = azurerm_resource_group.this.name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  depends_on = [
-    azurerm_private_dns_zone.events,
-    azurerm_virtual_network.this,
-  ]
-}
-
-# Private endpoint for the event hub namespace
-resource "azurerm_private_endpoint" "events" {
-  location            = azurerm_container_group.this.location
-  name                = "eventhubs-endpoint"
-  resource_group_name = azurerm_resource_group.this.name
-  subnet_id           = azurerm_subnet.events.id
-
-  private_service_connection {
-    is_manual_connection           = false
-    name                           = "eventhubs-private-endpoint"
-    private_connection_resource_id = azurerm_eventhub_namespace.this.id
-    subresource_names = [
-      "namespace",
-    ]
-  }
-
-  depends_on = [
-    azurerm_eventhub_namespace.this,
-    azurerm_subnet.events,
-  ]
-}
-
 # Private endpoint for the storage account
 resource "azurerm_private_endpoint" "storage" {
   location            = azurerm_resource_group.this.location
@@ -309,6 +250,64 @@ resource "azurerm_private_endpoint" "storage" {
   depends_on = [
     azurerm_subnet.events,
     azurerm_storage_account.events,
+  ]
+}
+
+# Private DNS zone for the event hub namespace
+resource "azurerm_private_dns_zone" "events" {
+  name                = "privatelink.servicebus.windows.net"
+  resource_group_name = azurerm_resource_group.this.name
+  depends_on = [
+    azurerm_resource_group.this,
+  ]
+}
+
+# DNS record for the event hub namespace
+resource "azurerm_private_dns_a_record" "events" {
+  name                = azurerm_eventhub_namespace.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  zone_name           = azurerm_private_dns_zone.events.name
+  ttl                 = 3600
+  records = [
+    "10.0.1.4",
+  ]
+  depends_on = [
+    azurerm_private_dns_zone.events,
+  ]
+}
+
+# Virtual network link for the event hub namespace
+resource "azurerm_private_dns_zone_virtual_network_link" "events" {
+  name                  = "events-virtual-network-link"
+  private_dns_zone_name = azurerm_private_dns_zone.events.name
+  resource_group_name   = azurerm_resource_group.this.name
+  virtual_network_id    = azurerm_virtual_network.this.id
+  depends_on = [
+    azurerm_private_dns_zone.events,
+    azurerm_virtual_network.this,
+  ]
+}
+
+# Private endpoint for the event hub namespace
+resource "azurerm_private_endpoint" "events" {
+  name                          = "ais-events-endpoint"
+  resource_group_name           = azurerm_resource_group.this.name
+  location                      = azurerm_container_group.this.location
+  subnet_id                     = azurerm_subnet.events.id
+  custom_network_interface_name = "ais-events-nic"
+
+  private_service_connection {
+    name                           = "ais-events-private-endpoint"
+    is_manual_connection           = false
+    private_connection_resource_id = azurerm_eventhub_namespace.this.id
+    subresource_names = [
+      "namespace",
+    ]
+  }
+
+  depends_on = [
+    azurerm_eventhub_namespace.this,
+    azurerm_subnet.events,
   ]
 }
 
@@ -349,6 +348,7 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
+    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
 
@@ -397,14 +397,15 @@ resource "azurerm_subnet" "events" {
 
 # Storage account for the events
 resource "azurerm_storage_account" "events" {
-  account_replication_type  = "LRS"
-  account_tier              = "Standard"
-  access_tier               = "Cool"
-  location                  = azurerm_resource_group.this.location
   name                      = var.storage_account_name
-  queue_encryption_key_type = "Account"
   resource_group_name       = azurerm_resource_group.this.name
-  table_encryption_key_type = "Account"
+  location                  = azurerm_resource_group.this.location
+  account_kind              = "BlobStorage" # TODO: Maybe this should be left out
+  account_tier              = "Standard"
+  account_replication_type  = "LRS"
+  access_tier               = "Cool"
+  # queue_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
+  # table_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
 
   blob_properties {
     delete_retention_policy {
@@ -415,6 +416,9 @@ resource "azurerm_storage_account" "events" {
   network_rules {
     default_action = "Deny"
     ip_rules       = var.allowed_ips
+    virtual_network_subnet_ids = [
+      azurerm_subnet.events.id,
+    ]
   }
 
   depends_on = [
