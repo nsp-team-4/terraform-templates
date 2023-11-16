@@ -19,7 +19,7 @@ variable "domain_name_label" {
 variable "storage_account_name" {
   description = "The name of the storage account for events."
   type        = string
-  default     = "storagenspais"
+  default     = "aisnspstorage"
 }
 
 # Event hub namespace name
