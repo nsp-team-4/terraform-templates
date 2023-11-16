@@ -231,11 +231,6 @@ resource "azurerm_subnet" "events" {
   ]
 }
 
-# Microsoft.Network/privateEndpoints/privateDnsZoneGroups
-# Microsoft.Network/privateEndpoints
-# Microsoft.Network/privateDnsZones/virtualNetworkLinks
-# Microsoft.EventHub/namespaces/privateEndpointConnections
-
 # Private DNS Zone
 resource "azurerm_private_dns_zone" "this" {
   name                = "privatelink.servicebus.windows.net"
@@ -267,6 +262,13 @@ resource "azurerm_private_endpoint" "this" {
     is_manual_connection           = false
     subresource_names = [
       "namespace",
+    ]
+  }
+
+  private_dns_zone_group {
+    name                  = "ais-events-dns-zone-group"
+    private_dns_zone_ids  = [
+      azurerm_private_dns_zone.this.id,
     ]
   }
 
