@@ -35,7 +35,7 @@ resource "azurerm_container_group" "this" {
   container {
     cpu    = 1
     image  = "auxority/ais-receiver"
-    memory = 1
+    memory = 1.5
     name   = "ais-receiver"
     environment_variables = {
       EVENT_HUB_NAME = azurerm_eventhub.this.name
@@ -87,11 +87,11 @@ resource "azurerm_eventhub_namespace" "this" {
 
 # Event Hub
 resource "azurerm_eventhub" "this" {
-  message_retention   = 1
   name                = "ais-event-hub"
+  resource_group_name = azurerm_resource_group.this.name
   namespace_name      = azurerm_eventhub_namespace.this.name
   partition_count     = 1
-  resource_group_name = azurerm_resource_group.this.name
+  message_retention   = 1
 
   capture_description {
     enabled             = true
@@ -115,9 +115,9 @@ resource "azurerm_eventhub" "this" {
 
 # Load balancer
 resource "azurerm_lb" "this" {
-  location            = azurerm_resource_group.this.location
   name                = "ais-load-balancer"
   resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
   sku                 = "Standard"
 
   frontend_ip_configuration {
@@ -153,15 +153,15 @@ resource "azurerm_lb_backend_address_pool_address" "this" {
 
 # Inbound NAT rule
 resource "azurerm_lb_nat_rule" "this" {
+  resource_group_name            = azurerm_resource_group.this.name
   backend_address_pool_id        = azurerm_lb_backend_address_pool.this.id
   backend_port                   = 2001
   frontend_ip_configuration_name = "ais-frontend-ip-config"
-  frontend_port_end              = 2001
   frontend_port_start            = 2001
+  frontend_port_end              = 2010 # TODO: Change to 2001 if it doesn't fix it.
   loadbalancer_id                = azurerm_lb.this.id
   name                           = "allow-port-2001-rule"
   protocol                       = "Tcp"
-  resource_group_name            = azurerm_resource_group.this.name
   depends_on = [
     azurerm_lb_backend_address_pool.this,
   ]
@@ -179,6 +179,7 @@ resource "azurerm_network_security_group" "this" {
 
 # Network security rule
 resource "azurerm_network_security_rule" "this" {
+  resource_group_name         = azurerm_resource_group.this.name
   access                      = "Allow"
   destination_address_prefix  = "10.0.0.0/24"
   destination_port_range      = "2001"
@@ -187,7 +188,6 @@ resource "azurerm_network_security_rule" "this" {
   network_security_group_name = "network-security-group"
   priority                    = 100
   protocol                    = "Tcp"
-  resource_group_name         = azurerm_resource_group.this.name
   source_address_prefixes     = var.allowed_ips
   source_port_range           = "*"
   depends_on = [
