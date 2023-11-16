@@ -4,7 +4,7 @@ variable "allowed_ips" {
   type        = list(string)
   default = [
     "86.92.2.242",
-    "212.115.197.130",
+    "212.115.197.141",
   ]
 }
 

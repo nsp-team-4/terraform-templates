@@ -50,7 +50,8 @@ resource "azurerm_container_group" "this" {
   }
 
   depends_on = [
-    azurerm_eventhub_namespace.this,
+    azurerm_subnet.default,
+    azurerm_subnet.events,
   ]
 }
 
@@ -63,21 +64,21 @@ resource "azurerm_eventhub_namespace" "this" {
   maximum_throughput_units = 2
   auto_inflate_enabled     = true
 
-  # network_rulesets {
-  #   default_action = "Deny"
+  network_rulesets {
+    default_action = "Deny"
 
-  #   ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
-  #     ip_mask = var.allowed_ips[0]
-  #   }
+    ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
+      ip_mask = var.allowed_ips[0]
+    }
 
-  #   ip_rule {
-  #     ip_mask = "10.0.0.0/24" # TODO: Test if this allows access from the virtual network.
-  #   }
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.default.id
+    }
 
-  #   virtual_network_rule {
-  #     subnet_id = azurerm_subnet.events.id
-  #   }
-  # }
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.events.id
+    }
+  }
 
   depends_on = [
     azurerm_resource_group.this,
@@ -158,7 +159,7 @@ resource "azurerm_lb_nat_rule" "this" {
   backend_port                   = 2001
   frontend_ip_configuration_name = "ais-frontend-ip-config"
   frontend_port_start            = 2001
-  frontend_port_end              = 2010 # TODO: Change to 2001 if it doesn't fix it.
+  frontend_port_end              = 2001
   loadbalancer_id                = azurerm_lb.this.id
   name                           = "allow-port-2001-rule"
   protocol                       = "Tcp"
@@ -192,6 +193,16 @@ resource "azurerm_network_security_rule" "this" {
   source_port_range           = "*"
   depends_on = [
     azurerm_network_security_group.this,
+  ]
+}
+
+# Network security group association for the default subnet
+resource "azurerm_subnet_network_security_group_association" "this" {
+  network_security_group_id = azurerm_network_security_group.this.id
+  subnet_id                 = azurerm_subnet.default.id
+  depends_on = [
+    azurerm_network_security_group.this,
+    azurerm_subnet.default,
   ]
 }
 
@@ -268,7 +279,7 @@ resource "azurerm_private_dns_a_record" "events" {
   zone_name           = azurerm_private_dns_zone.events.name
   ttl                 = 3600
   records = [
-    "10.0.1.4",
+    "10.0.1.4", # TODO: Check if this can be replaced with a reference to the private endpoint.
   ]
   depends_on = [
     azurerm_private_dns_zone.events,
@@ -293,7 +304,7 @@ resource "azurerm_private_endpoint" "events" {
   resource_group_name           = azurerm_resource_group.this.name
   location                      = azurerm_container_group.this.location
   subnet_id                     = azurerm_subnet.events.id
-  custom_network_interface_name = "ais-events-nic"
+  # custom_network_interface_name = "ais-events-nic" # TODO: Check if this can be enabled again.
 
   private_service_connection {
     name                           = "ais-events-private-endpoint"
@@ -326,8 +337,8 @@ resource "azurerm_public_ip" "this" {
 # Virtual network
 resource "azurerm_virtual_network" "this" {
   address_space = [
-    "10.0.0.0/24",
-    "10.0.1.0/24",
+    "10.0.0.0/16",
+    # "10.0.1.0/16",
   ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
@@ -347,6 +358,7 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
+    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
 
@@ -363,16 +375,6 @@ resource "azurerm_subnet" "default" {
 
   depends_on = [
     azurerm_virtual_network.this,
-  ]
-}
-
-# Network security group association for the default subnet
-resource "azurerm_subnet_network_security_group_association" "this" {
-  network_security_group_id = azurerm_network_security_group.this.id
-  subnet_id                 = azurerm_subnet.default.id
-  depends_on = [
-    azurerm_network_security_group.this,
-    azurerm_subnet.default,
   ]
 }
 
