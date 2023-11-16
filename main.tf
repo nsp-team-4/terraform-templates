@@ -51,66 +51,6 @@ resource "azurerm_container_group" "this" {
 
   depends_on = [
     azurerm_subnet.default,
-    azurerm_subnet.events,
-  ]
-}
-
-# Event Hub Namespace
-resource "azurerm_eventhub_namespace" "this" {
-  location                 = azurerm_resource_group.this.location
-  name                     = var.eventhub_namespace_name
-  resource_group_name      = azurerm_resource_group.this.name
-  sku                      = "Standard"
-  maximum_throughput_units = 2
-  auto_inflate_enabled     = true
-
-  network_rulesets {
-    default_action = "Deny"
-
-    ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
-      ip_mask = var.allowed_ips[0]
-    }
-
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.default.id
-    }
-
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.events.id
-    }
-  }
-
-  depends_on = [
-    azurerm_resource_group.this,
-    azurerm_subnet.events,
-  ]
-}
-
-# Event Hub
-resource "azurerm_eventhub" "this" {
-  name                = "ais-event-hub"
-  resource_group_name = azurerm_resource_group.this.name
-  namespace_name      = azurerm_eventhub_namespace.this.name
-  partition_count     = 1
-  message_retention   = 1
-
-  capture_description {
-    enabled             = true
-    encoding            = "Avro"
-    interval_in_seconds = 60
-    size_limit_in_bytes = 62914560
-
-    destination {
-      archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
-      blob_container_name = "decoded-messages"
-      name                = "EventHubArchive.AzureBlockBlob"
-      storage_account_id  = azurerm_storage_account.events.id
-    }
-  }
-
-  depends_on = [
-    azurerm_eventhub_namespace.this,
-    azurerm_storage_account.events,
   ]
 }
 
@@ -206,121 +146,6 @@ resource "azurerm_subnet_network_security_group_association" "this" {
   ]
 }
 
-# Private DNS zone for the storage account
-resource "azurerm_private_dns_zone" "storage" {
-  name                = "privatelink.blob.core.windows.net"
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
-}
-
-# DNS record for the storage account
-resource "azurerm_private_dns_a_record" "storage" {
-  name = "nspstoragednsrecord"
-  records = [
-    "10.0.1.5",
-  ]
-  resource_group_name = azurerm_resource_group.this.name
-  ttl                 = 3600
-  zone_name           = azurerm_private_dns_zone.storage.name
-  depends_on = [
-    azurerm_private_dns_zone.storage,
-  ]
-}
-
-# Virtual network link for the storage account
-resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
-  name                  = "storage-virtual-network-link"
-  private_dns_zone_name = azurerm_private_dns_zone.storage.name
-  resource_group_name   = azurerm_resource_group.this.name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  depends_on = [
-    azurerm_private_dns_zone.storage,
-    azurerm_virtual_network.this,
-  ]
-}
-
-# Private endpoint for the storage account
-resource "azurerm_private_endpoint" "storage" {
-  location            = azurerm_resource_group.this.location
-  name                = "storage-endpoint"
-  resource_group_name = azurerm_resource_group.this.name
-  subnet_id           = azurerm_subnet.events.id
-
-  private_service_connection {
-    is_manual_connection           = false
-    name                           = "storage-private-endpoint"
-    private_connection_resource_id = azurerm_storage_account.events.id
-    subresource_names = [
-      "blob",
-    ]
-  }
-
-  depends_on = [
-    azurerm_subnet.events,
-    azurerm_storage_account.events,
-  ]
-}
-
-# Private DNS zone for the event hub namespace
-resource "azurerm_private_dns_zone" "events" {
-  name                = "privatelink.servicebus.windows.net"
-  resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
-}
-
-# DNS record for the event hub namespace
-resource "azurerm_private_dns_a_record" "events" {
-  name                = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  zone_name           = azurerm_private_dns_zone.events.name
-  ttl                 = 3600
-  records = [
-    "10.0.1.4", # TODO: Check if this can be replaced with a reference to the private endpoint.
-  ]
-  depends_on = [
-    azurerm_private_dns_zone.events,
-  ]
-}
-
-# Virtual network link for the event hub namespace
-resource "azurerm_private_dns_zone_virtual_network_link" "events" {
-  name                  = "events-virtual-network-link"
-  resource_group_name   = azurerm_resource_group.this.name
-  private_dns_zone_name = azurerm_private_dns_zone.events.name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  depends_on = [
-    azurerm_private_dns_zone.events,
-    azurerm_virtual_network.this,
-  ]
-}
-
-# Private endpoint for the event hub namespace
-resource "azurerm_private_endpoint" "events" {
-  name                          = "ais-events-endpoint"
-  resource_group_name           = azurerm_resource_group.this.name
-  location                      = azurerm_container_group.this.location
-  subnet_id                     = azurerm_subnet.events.id
-  # custom_network_interface_name = "ais-events-nic" # TODO: Check if this can be enabled again.
-
-  private_service_connection {
-    name                           = "ais-events-private-endpoint"
-    is_manual_connection           = false
-    private_connection_resource_id = azurerm_eventhub_namespace.this.id
-    subresource_names = [
-      "namespace",
-    ]
-  }
-
-  depends_on = [
-    azurerm_eventhub_namespace.this,
-    azurerm_subnet.events,
-  ]
-}
-
 # Public IP
 resource "azurerm_public_ip" "this" {
   allocation_method   = "Static"
@@ -338,7 +163,6 @@ resource "azurerm_public_ip" "this" {
 resource "azurerm_virtual_network" "this" {
   address_space = [
     "10.0.0.0/16",
-    # "10.0.1.0/16",
   ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
@@ -358,7 +182,6 @@ resource "azurerm_subnet" "default" {
   service_endpoints = [
     "Microsoft.KeyVault",
     "Microsoft.Storage",
-    "Microsoft.EventHub",
   ]
   virtual_network_name = azurerm_virtual_network.this.name
 
@@ -378,50 +201,19 @@ resource "azurerm_subnet" "default" {
   ]
 }
 
-# Events subnet
-resource "azurerm_subnet" "events" {
-  name                 = "eventhubs-subnet"
-  resource_group_name  = azurerm_resource_group.this.name
-  virtual_network_name = azurerm_virtual_network.this.name
-  address_prefixes = [
-    "10.0.1.0/24",
-  ]
-  service_endpoints = [
-    "Microsoft.EventHub",
-    "Microsoft.Storage",
-  ]
-  depends_on = [
-    azurerm_virtual_network.this,
-  ]
+# Temporary Event Hub Namespace
+resource "azurerm_eventhub_namespace" "this" {
+  name = var.eventhub_namespace_name
+  resource_group_name = azurerm_resource_group.this.name
+  location = azurerm_resource_group.this.location
+  sku = "Standard"  
 }
 
-# Storage account for the events
-resource "azurerm_storage_account" "events" {
-  name                     = var.storage_account_name
-  resource_group_name      = azurerm_resource_group.this.name
-  location                 = azurerm_resource_group.this.location
-  account_kind             = "BlobStorage" # TODO: Maybe this should be left out
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  access_tier              = "Cool"
-  # queue_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
-  # table_encryption_key_type = "Account" # TODO: Add this back when removing account_kind
-
-  blob_properties {
-    delete_retention_policy {
-      days = 1
-    }
-  }
-
-  network_rules {
-    default_action = "Deny"
-    ip_rules       = var.allowed_ips
-    virtual_network_subnet_ids = [
-      azurerm_subnet.events.id,
-    ]
-  }
-
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
+# Temporary Event Hub
+resource "azurerm_eventhub" "this" {
+  name = "ais-events"
+  namespace_name = azurerm_eventhub_namespace.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  partition_count = 1
+  message_retention = 1
 }
