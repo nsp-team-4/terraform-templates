@@ -231,13 +231,13 @@ resource "azurerm_subnet" "events" {
   ]
 }
 
-# Private DNS Zone
+# Private DNS Zone for the Event Hub Namespace
 resource "azurerm_private_dns_zone" "this" {
   name                = "privatelink.servicebus.windows.net"
   resource_group_name = azurerm_resource_group.this.name
 }
 
-# Private DNS Zone Group
+# Private DNS Zone Group for the Event Hub Namespace
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   name                  = "ais-events-vnet-link"
   private_dns_zone_name = azurerm_private_dns_zone.this.name
@@ -249,7 +249,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   ]
 }
 
-# Private endpoint
+# Private endpoint for the Event Hub Namespace
 resource "azurerm_private_endpoint" "this" {
   name                = "ais-events-endpoint"
   location            = azurerm_resource_group.this.location
