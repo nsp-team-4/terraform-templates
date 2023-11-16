@@ -131,6 +131,10 @@ resource "azurerm_network_security_rule" "this" {
   protocol                    = "Tcp"
   source_address_prefixes     = var.allowed_ips
   source_port_range           = "*"
+
+  depends_on = [
+    azurerm_network_security_group.this,
+  ]
 }
 
 # Network security group association for the default subnet
@@ -246,7 +250,7 @@ resource "azurerm_subnet" "events" {
   virtual_network_name = azurerm_virtual_network.this.name
   service_endpoints = [
     "Microsoft.EventHub",
-    "Microsoft.Storage", # TODO: Check if this is necessary
+    "Microsoft.Storage",
   ]
 }
 
