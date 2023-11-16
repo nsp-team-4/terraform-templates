@@ -51,6 +51,7 @@ resource "azurerm_container_group" "this" {
 
   depends_on = [
     azurerm_subnet.default,
+    azurerm_eventhub_namespace.this,
   ]
 }
 
@@ -75,6 +76,7 @@ resource "azurerm_lb" "this" {
 resource "azurerm_lb_backend_address_pool" "this" {
   loadbalancer_id = azurerm_lb.this.id
   name            = "ais-backend-pool"
+
   depends_on = [
     azurerm_lb.this,
   ]
@@ -86,6 +88,7 @@ resource "azurerm_lb_backend_address_pool_address" "this" {
   name                    = "container-group-address"
   virtual_network_id      = azurerm_virtual_network.this.id
   ip_address              = azurerm_container_group.this.ip_address
+
   depends_on = [
     azurerm_lb_backend_address_pool.this,
     azurerm_virtual_network.this,
@@ -113,9 +116,6 @@ resource "azurerm_network_security_group" "this" {
   location            = azurerm_resource_group.this.location
   name                = "network-security-group"
   resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
 }
 
 # Network security rule
@@ -131,15 +131,13 @@ resource "azurerm_network_security_rule" "this" {
   protocol                    = "Tcp"
   source_address_prefixes     = var.allowed_ips
   source_port_range           = "*"
-  depends_on = [
-    azurerm_network_security_group.this,
-  ]
 }
 
 # Network security group association for the default subnet
 resource "azurerm_subnet_network_security_group_association" "this" {
   network_security_group_id = azurerm_network_security_group.this.id
   subnet_id                 = azurerm_subnet.default.id
+
   depends_on = [
     azurerm_network_security_group.this,
     azurerm_subnet.default,
@@ -154,9 +152,6 @@ resource "azurerm_public_ip" "this" {
   name                = "ais-public-ip"
   resource_group_name = azurerm_resource_group.this.name
   sku                 = "Standard"
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
 }
 
 # Virtual network
@@ -167,9 +162,6 @@ resource "azurerm_virtual_network" "this" {
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
   resource_group_name = azurerm_resource_group.this.name
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
 }
 
 # Default subnet
@@ -195,25 +187,91 @@ resource "azurerm_subnet" "default" {
       name = "Microsoft.ContainerInstance/containerGroups"
     }
   }
+}
+
+# Event Hub Namespace
+resource "azurerm_eventhub_namespace" "this" {
+  name                = var.eventhub_namespace_name
+  resource_group_name = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  sku                 = "Standard"
+
+  network_rulesets {
+    default_action = "Deny"
+
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.events.id
+    }
+  }
+
+  depends_on = [
+    azurerm_subnet.events,
+  ]
+}
+
+# Event Hub
+resource "azurerm_eventhub" "this" {
+  name                = "ais-events"
+  namespace_name      = azurerm_eventhub_namespace.this.name
+  resource_group_name = azurerm_resource_group.this.name
+  partition_count     = 1
+  message_retention   = 1
+}
+
+# Events subnet
+resource "azurerm_subnet" "events" {
+  name = "events"
+  address_prefixes = [
+    "10.0.1.0/24",
+  ]
+  resource_group_name  = azurerm_resource_group.this.name
+  virtual_network_name = azurerm_virtual_network.this.name
+  service_endpoints = [
+    "Microsoft.EventHub",
+  ]
+}
+
+# Microsoft.Network/privateEndpoints/privateDnsZoneGroups
+# Microsoft.Network/privateEndpoints
+# Microsoft.Network/privateDnsZones/virtualNetworkLinks
+# Microsoft.EventHub/namespaces/privateEndpointConnections
+
+# Private DNS Zone
+resource "azurerm_private_dns_zone" "this" {
+  name                = "privatelink.servicebus.windows.net"
+  resource_group_name = azurerm_resource_group.this.name
+}
+
+# Private DNS Zone Group
+resource "azurerm_private_dns_zone_virtual_network_link" "this" {
+  name                  = "ais-events-vnet-link"
+  private_dns_zone_name = azurerm_private_dns_zone.this.name
+  resource_group_name   = azurerm_resource_group.this.name
+  virtual_network_id    = azurerm_virtual_network.this.id
 
   depends_on = [
     azurerm_virtual_network.this,
   ]
 }
 
-# Temporary Event Hub Namespace
-resource "azurerm_eventhub_namespace" "this" {
-  name = var.eventhub_namespace_name
+# Private endpoint
+resource "azurerm_private_endpoint" "this" {
+  name                = "ais-events-endpoint"
+  location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
-  location = azurerm_resource_group.this.location
-  sku = "Standard"  
-}
+  subnet_id           = azurerm_subnet.events.id
 
-# Temporary Event Hub
-resource "azurerm_eventhub" "this" {
-  name = "ais-events"
-  namespace_name = azurerm_eventhub_namespace.this.name
-  resource_group_name = azurerm_resource_group.this.name
-  partition_count = 1
-  message_retention = 1
+  private_service_connection {
+    name                           = "ais-events-connection"
+    private_connection_resource_id = azurerm_eventhub_namespace.this.id
+    is_manual_connection           = false
+    subresource_names = [
+      "namespace",
+    ]
+  }
+
+  depends_on = [
+    azurerm_eventhub_namespace.this,
+    azurerm_subnet.events,
+  ]
 }
