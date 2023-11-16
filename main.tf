@@ -63,21 +63,21 @@ resource "azurerm_eventhub_namespace" "this" {
   maximum_throughput_units = 2
   auto_inflate_enabled     = true
 
-  network_rulesets {
-    default_action = "Deny"
+  # network_rulesets {
+  #   default_action = "Deny"
 
-    ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
-      ip_mask = var.allowed_ips[0]
-    }
+  #   ip_rule { # TODO: Remove this temporary rule that is here for debugging purposes, and then remove the entire network_rulesets block.
+  #     ip_mask = var.allowed_ips[0]
+  #   }
 
-    ip_rule {
-      ip_mask = "10.0.0.0/24" # TODO: Test if this allows access from the virtual network.
-    }
+  #   ip_rule {
+  #     ip_mask = "10.0.0.0/24" # TODO: Test if this allows access from the virtual network.
+  #   }
 
-    virtual_network_rule {
-      subnet_id = azurerm_subnet.events.id
-    }
-  }
+  #   virtual_network_rule {
+  #     subnet_id = azurerm_subnet.events.id
+  #   }
+  # }
 
   depends_on = [
     azurerm_resource_group.this,
