@@ -48,11 +48,6 @@ resource "azurerm_container_group" "this" {
       port = 2001
     }
   }
-
-  depends_on = [
-    azurerm_subnet.default,
-    azurerm_eventhub_namespace.this,
-  ]
 }
 
 # Load balancer
@@ -66,20 +61,12 @@ resource "azurerm_lb" "this" {
     name                 = "ais-frontend-ip-config"
     public_ip_address_id = azurerm_public_ip.this.id
   }
-
-  depends_on = [
-    azurerm_resource_group.this,
-  ]
 }
 
 # Backend pool
 resource "azurerm_lb_backend_address_pool" "this" {
   loadbalancer_id = azurerm_lb.this.id
   name            = "ais-backend-pool"
-
-  depends_on = [
-    azurerm_lb.this,
-  ]
 }
 
 # Backend pool address
@@ -88,11 +75,6 @@ resource "azurerm_lb_backend_address_pool_address" "this" {
   name                    = "container-group-address"
   virtual_network_id      = azurerm_virtual_network.this.id
   ip_address              = azurerm_container_group.this.ip_address
-
-  depends_on = [
-    azurerm_lb_backend_address_pool.this,
-    azurerm_virtual_network.this,
-  ]
 }
 
 # Inbound NAT rule
@@ -106,9 +88,6 @@ resource "azurerm_lb_nat_rule" "this" {
   loadbalancer_id                = azurerm_lb.this.id
   name                           = "allow-port-2001-rule"
   protocol                       = "Tcp"
-  depends_on = [
-    azurerm_lb_backend_address_pool.this,
-  ]
 }
 
 # Network security group
@@ -141,11 +120,6 @@ resource "azurerm_network_security_rule" "this" {
 resource "azurerm_subnet_network_security_group_association" "this" {
   network_security_group_id = azurerm_network_security_group.this.id
   subnet_id                 = azurerm_subnet.default.id
-
-  depends_on = [
-    azurerm_network_security_group.this,
-    azurerm_subnet.default,
-  ]
 }
 
 # Public IP
@@ -207,10 +181,6 @@ resource "azurerm_eventhub_namespace" "this" {
       subnet_id = azurerm_subnet.events.id
     }
   }
-
-  depends_on = [
-    azurerm_subnet.events,
-  ]
 }
 
 # Event Hub
@@ -234,10 +204,6 @@ resource "azurerm_eventhub" "this" {
       storage_account_id  = azurerm_storage_account.events.id
     }
   }
-
-  depends_on = [
-    azurerm_storage_account.events,
-  ]
 }
 
 # Events subnet
@@ -266,10 +232,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "events" {
   private_dns_zone_name = azurerm_private_dns_zone.events.name
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
-
-  depends_on = [
-    azurerm_virtual_network.this,
-  ]
 }
 
 # Private endpoint for the Event Hub Namespace
@@ -294,21 +256,16 @@ resource "azurerm_private_endpoint" "events" {
       azurerm_private_dns_zone.events.id,
     ]
   }
-
-  depends_on = [
-    azurerm_eventhub_namespace.this,
-    azurerm_subnet.events,
-  ]
 }
 
 # Storage account for the Event Hub Namespace
 resource "azurerm_storage_account" "events" {
-  name                     = var.storage_account_name
-  resource_group_name      = azurerm_resource_group.this.name
-  location                 = azurerm_resource_group.this.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  access_tier              = "Cool"
+  name                      = var.storage_account_name
+  resource_group_name       = azurerm_resource_group.this.name
+  location                  = azurerm_resource_group.this.location
+  account_tier              = "Standard"
+  account_replication_type  = "LRS"
+  access_tier               = "Cool"
   queue_encryption_key_type = "Account"
   table_encryption_key_type = "Account"
 
@@ -325,10 +282,6 @@ resource "azurerm_storage_account" "events" {
       azurerm_subnet.events.id,
     ]
   }
-
-  depends_on = [
-    azurerm_subnet.events,
-  ]
 }
 
 # Private DNS Zone for the Storage Account
@@ -343,10 +296,6 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
   private_dns_zone_name = azurerm_private_dns_zone.storage.name
   resource_group_name   = azurerm_resource_group.this.name
   virtual_network_id    = azurerm_virtual_network.this.id
-
-  depends_on = [
-    azurerm_virtual_network.this,
-  ]
 }
 
 # Private endpoint for the Storage Account
@@ -371,10 +320,4 @@ resource "azurerm_private_endpoint" "storage" {
       azurerm_private_dns_zone.storage.id,
     ]
   }
-
-  depends_on = [
-    azurerm_storage_account.events,
-    azurerm_subnet.events,
-    azurerm_private_dns_zone.storage,
-  ]
 }
