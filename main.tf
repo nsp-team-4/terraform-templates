@@ -277,7 +277,7 @@ resource "azurerm_storage_account" "events" {
 
   network_rules {
     default_action = "Deny"
-    ip_rules       = var.allowed_ips # TODO: Check if there is another way to do this, because this is not the most secure way to give NSP access to the data.
+    ip_rules       = var.allowed_ips # TODO: Check if there is another way to do this, because this is not the most secure way to give NSP access to the data (e.g. Event Hub).
     virtual_network_subnet_ids = [
       azurerm_subnet.events.id,
     ]
