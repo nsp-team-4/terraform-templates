@@ -338,57 +338,45 @@ resource "azurerm_subnet" "stream" {
   service_endpoints = [
     "Microsoft.EventHub",
   ]
+
+  delegation {
+    name = "Microsoft.StreamAnalytics/streamingJobs"
+
+    service_delegation {
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action",
+      ]
+      name = "Microsoft.StreamAnalytics/streamingJobs"
+    }
+  }
 }
 
 # Azure Stream Analytics Job
-# resource "azurerm_stream_analytics_job" "this" {
-#   name                = "ais-stream-job"
-#   resource_group_name = azurerm_resource_group.this.name
-#   location            = azurerm_resource_group.this.location
-#   compatibility_level = "1.2"
-#   streaming_units     = 6
-#   # TODO: Add pricing StandardV2 once this is supported by Terraform
-#   transformation_query = <<QUERY
-#     SELECT
-#         *
-#     INTO
-#         [ais-decoded-output]
-#     FROM
-#         [ais-decoded-input]
-#   QUERY
+resource "azurerm_stream_analytics_job" "this" {
+  name                   = "ais-stream-job"
+  resource_group_name    = azurerm_resource_group.this.name
+  location               = azurerm_resource_group.this.location
+  streaming_units        = 12
 
-#   job_storage_account {
-#     authentication_mode = "ConnectionString"
-#     account_name        = azurerm_storage_account.events.name
-#     account_key         = azurerm_storage_account.events.primary_access_key
-#   }
-# }
+  identity {
+    type = "SystemAssigned"
+  }
 
-# Hack for now, because the "azurerm_stream_analytics_job" resource is not properly supported yet by Terraform.
-resource "azurerm_resource_group_template_deployment" "this" {
-  name                = "ais-stream-job-deployment"
-  resource_group_name = azurerm_resource_group.this.name
-  deployment_mode     = "Incremental"
-
-  template_content = templatefile("stream-analytics-job.json", {})
-  parameters_content = jsonencode({
-    "streamingjobs_stream_ais_name" = {
-      "value" = var.stream_analytics_job_name
-    }
-  })
-}
-
-output "streamingjobs_stream_ais_id" {
-  value = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
-}
-
-output "streamingjobs_stream_ais_name" {
-  value = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_name.value
+  # TODO: Add pricing StandardV2 once this is supported by Terraform
+  # TODO: Add virtual network configuration once this is supported by Terraform
+  transformation_query = <<QUERY
+    SELECT
+        *
+    INTO
+        [ais-decoded-output]
+    FROM
+        [ais-decoded-input]
+  QUERY
 }
 
 resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
   name                      = "ais-decoded-input"
-  stream_analytics_job_id   = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
+  stream_analytics_job_id   = azurerm_stream_analytics_job.this.id
   eventhub_name             = azurerm_eventhub.this.name
   servicebus_namespace      = azurerm_eventhub_namespace.this.name
   shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
@@ -404,7 +392,7 @@ resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
 resource "azurerm_stream_analytics_output_blob" "this" {
   name                      = "output-to-blob-storage"
   resource_group_name       = azurerm_resource_group.this.name
-  stream_analytics_job_name = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_name.value
+  stream_analytics_job_name = azurerm_stream_analytics_job.this.name
   date_format               = "yyyy-MM-dd"
   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
   storage_account_name      = azurerm_storage_account.events.name
@@ -421,11 +409,11 @@ resource "azurerm_stream_analytics_output_blob" "this" {
 
 # Stream Analytics Job Scheduler
 resource "azurerm_stream_analytics_job_schedule" "this" {
-  stream_analytics_job_id = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
+  stream_analytics_job_id = azurerm_stream_analytics_job.this.id
   start_mode              = "JobStartTime"
 
   depends_on = [
-    azurerm_resource_group_template_deployment.this,
+    azurerm_stream_analytics_job.this,
     azurerm_stream_analytics_stream_input_eventhub_v2.this,
     azurerm_stream_analytics_output_blob.this,
   ]
