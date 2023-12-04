@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.80.0"
+      version = "~> 3.83.0"
     }
   }
 
@@ -136,6 +136,7 @@ resource "azurerm_public_ip" "this" {
 resource "azurerm_virtual_network" "this" {
   address_space = [
     "10.0.0.0/16",
+    "10.1.0.0/16", # TODO: Is this necessary? (Stream Analytics)
   ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
@@ -179,6 +180,10 @@ resource "azurerm_eventhub_namespace" "this" {
 
     virtual_network_rule {
       subnet_id = azurerm_subnet.events.id
+    }
+
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.stream.id
     }
   }
 }
@@ -320,4 +325,108 @@ resource "azurerm_private_endpoint" "storage" {
       azurerm_private_dns_zone.storage.id,
     ]
   }
+}
+
+# Stream Analytics subnet
+resource "azurerm_subnet" "stream" {
+  name = "stream"
+  address_prefixes = [
+    "10.1.0.0/24",
+  ]
+  resource_group_name  = azurerm_resource_group.this.name
+  virtual_network_name = azurerm_virtual_network.this.name
+  service_endpoints = [
+    "Microsoft.EventHub",
+  ]
+}
+
+# Azure Stream Analytics Job
+# resource "azurerm_stream_analytics_job" "this" {
+#   name                = "ais-stream-job"
+#   resource_group_name = azurerm_resource_group.this.name
+#   location            = azurerm_resource_group.this.location
+#   compatibility_level = "1.2"
+#   streaming_units     = 6
+#   # TODO: Add pricing StandardV2 once this is supported by Terraform
+#   transformation_query = <<QUERY
+#     SELECT
+#         *
+#     INTO
+#         [ais-decoded-output]
+#     FROM
+#         [ais-decoded-input]
+#   QUERY
+
+#   job_storage_account {
+#     authentication_mode = "ConnectionString"
+#     account_name        = azurerm_storage_account.events.name
+#     account_key         = azurerm_storage_account.events.primary_access_key
+#   }
+# }
+
+# Hack for now, because the "azurerm_stream_analytics_job" resource is not properly supported yet by Terraform.
+resource "azurerm_resource_group_template_deployment" "this" {
+  name                = "ais-stream-job-deployment"
+  resource_group_name = azurerm_resource_group.this.name
+  deployment_mode     = "Incremental"
+
+  template_content = templatefile("stream-analytics-job.json", {})
+  parameters_content = jsonencode({
+    "streamingjobs_stream_ais_name" = {
+      "value" = var.stream_analytics_job_name
+    }
+  })
+}
+
+output "streamingjobs_stream_ais_id" {
+  value = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
+}
+
+output "streamingjobs_stream_ais_name" {
+  value = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_name.value
+}
+
+resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
+  name                      = "ais-decoded-input"
+  stream_analytics_job_id   = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
+  eventhub_name             = azurerm_eventhub.this.name
+  servicebus_namespace      = azurerm_eventhub_namespace.this.name
+  shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
+  shared_access_policy_name = "RootManageSharedAccessKey"
+
+  serialization {
+    type     = "Json"
+    encoding = "UTF8"
+  }
+}
+
+# Output Blob for the Stream Analytics Job
+resource "azurerm_stream_analytics_output_blob" "this" {
+  name                      = "output-to-blob-storage"
+  resource_group_name       = azurerm_resource_group.this.name
+  stream_analytics_job_name = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_name.value
+  date_format               = "yyyy-MM-dd"
+  path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
+  storage_account_name      = azurerm_storage_account.events.name
+  storage_account_key       = azurerm_storage_account.events.primary_access_key
+  storage_container_name    = "decoded-messages-test123"
+  time_format               = "HH"
+
+  serialization {
+    type     = "Json"
+    encoding = "UTF8"
+    format   = "Array"
+  }
+}
+
+# Stream Analytics Job Scheduler
+resource "azurerm_stream_analytics_job_schedule" "this" {
+  stream_analytics_job_id = jsondecode(azurerm_resource_group_template_deployment.this.output_content).streamingjobs_stream_ais_id.value
+  start_mode              = "JobStartTime"
+
+  depends_on = [
+    azurerm_resource_group_template_deployment.this,
+    azurerm_stream_analytics_stream_input_eventhub_v2.this,
+    azurerm_stream_analytics_output_blob.this,
+  ]
 }

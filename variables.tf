@@ -3,8 +3,9 @@ variable "allowed_ips" {
   description = "The IP prefixes that are allowed to connect to the AIS receiver container."
   type        = list(string)
   default = [
-    "86.92.2.242",
-    "212.115.197.141",
+    "86.92.2.242", # Home
+    "212.115.197.141", # NSP
+    "145.19.248.127", # School
   ]
 }
 
@@ -27,4 +28,11 @@ variable "eventhub_namespace_name" {
   description = "The name of the event hub namespace."
   type        = string
   default     = "ais-events"
+}
+
+# Stream analytics job name
+variable "stream_analytics_job_name" {
+  description = "The name of the streaming job."
+  type        = string
+  default     = "ais-stream-job"
 }

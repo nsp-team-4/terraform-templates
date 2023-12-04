@@ -1,0 +1,54 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "streamingjobs_stream_ais_name": {
+            "type": "string"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs",
+            "apiVersion": "2021-10-01-preview",
+            "name": "[parameters('streamingjobs_stream_ais_name')]",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "sku": {
+                "name": "StandardV2",
+                "capacity": 6
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "sku": {
+                    "name": "Standard"
+                },
+                "outputStartMode": "JobStartTime",
+                "eventsOutOfOrderPolicy": "Adjust",
+                "outputErrorPolicy": "Stop",
+                "eventsOutOfOrderMaxDelayInSeconds": 0,
+                "eventsLateArrivalMaxDelayInSeconds": 5,
+                "dataLocale": "en-US",
+                "compatibilityLevel": "1.2",
+                "jobStorageAccount": {
+                    "authenticationMode": "Msi",
+                    "accountName": "aisnspstorage"
+                },
+                "contentStoragePolicy": "SystemAccount",
+                "jobType": "Cloud"
+            }
+        }
+    ],
+    "outputs": {
+        "streamingjobs_stream_ais_name": {
+            "type": "string",
+            "value": "ais-stream-job"
+        },
+        "streamingjobs_stream_ais_id": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.StreamAnalytics/streamingjobs', parameters('streamingjobs_stream_ais_name'))]"
+        }
+    }
+}
