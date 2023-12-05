@@ -405,6 +405,10 @@ resource "azapi_resource" "this" {
       capacity = 3
       name     = "StandardV2"
     }
+    # networkConfigurations = {
+    #   subnetId = azurerm_subnet.stream.id
+    #   delegatedSubnetName = "Microsoft.StreamAnalytics/streamingjobs"
+    # }
   })
 }
 
