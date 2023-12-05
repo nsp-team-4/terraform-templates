@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 3.83.0"
     }
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 1.10.0"
+    }
   }
 
   required_version = ">= 1.6.3"
@@ -161,6 +165,7 @@ resource "azurerm_subnet" "default" {
 
     service_delegation {
       actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
         "Microsoft.Network/virtualNetworks/subnets/action",
       ]
       name = "Microsoft.ContainerInstance/containerGroups"
@@ -345,76 +350,129 @@ resource "azurerm_subnet" "stream" {
     service_delegation {
       actions = [
         "Microsoft.Network/virtualNetworks/subnets/action",
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
       ]
       name = "Microsoft.StreamAnalytics/streamingJobs"
     }
   }
 }
 
-# Azure Stream Analytics Job
-resource "azurerm_stream_analytics_job" "this" {
-  name                   = "ais-stream-job"
-  resource_group_name    = azurerm_resource_group.this.name
-  location               = azurerm_resource_group.this.location
-  streaming_units        = 12
+# Stream Analytics Job
+resource "azapi_resource" "this" {
+  type      = "Microsoft.StreamAnalytics/streamingjobs@2021-10-01-preview"
+  name      = "stream-ais-job"
+  parent_id = azurerm_resource_group.this.id
+  location  = azurerm_resource_group.this.location
+  tags      = {}
 
   identity {
     type = "SystemAssigned"
   }
 
-  # TODO: Add pricing StandardV2 once this is supported by Terraform
-  # TODO: Add virtual network configuration once this is supported by Terraform
-  transformation_query = <<QUERY
-    SELECT
-        *
-    INTO
-        [ais-decoded-output]
-    FROM
-        [ais-decoded-input]
-  QUERY
+  body = jsonencode({
+    properties = {
+      compatibilityLevel                 = "1.2"
+      contentStoragePolicy               = "JobStorageAccount"
+      dataLocale                         = "en-US"
+      eventsOutOfOrderMaxDelayInSeconds  = 0
+      eventsLateArrivalMaxDelayInSeconds = 5
+      eventsOutOfOrderPolicy             = "Adjust"
+      externals = {
+        container = "test-container"
+        path     = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
+        storageAccount = {
+          accountKey         = azurerm_storage_account.events.primary_access_key
+          accountName        = azurerm_storage_account.events.name
+          authenticationMode = "Msi"
+        }
+      }
+      functions = []
+      inputs    = []
+      jobStorageAccount = {
+        accountName        = azurerm_storage_account.events.name
+        authenticationMode = "Msi"
+      }
+      jobType           = "Cloud"
+      outputErrorPolicy = "Drop"
+      outputs           = []
+      sku = {
+        capacity = 3
+        name     = "StandardV2"
+      }
+      transformation = null
+    }
+    sku = {
+      capacity = 3
+      name     = "StandardV2"
+    }
+  })
 }
 
-resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
-  name                      = "ais-decoded-input"
-  stream_analytics_job_id   = azurerm_stream_analytics_job.this.id
-  eventhub_name             = azurerm_eventhub.this.name
-  servicebus_namespace      = azurerm_eventhub_namespace.this.name
-  shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
-  shared_access_policy_name = "RootManageSharedAccessKey"
 
-  serialization {
-    type     = "Json"
-    encoding = "UTF8"
-  }
-}
+
+
+# Azure Stream Analytics Job
+# resource "azurerm_stream_analytics_job" "this" {
+#   name                   = "ais-stream-job"
+#   resource_group_name    = azurerm_resource_group.this.name
+#   location               = azurerm_resource_group.this.location
+#   streaming_units        = 12
+
+#   transformation_query = templatefile("./sql/stream-analytics-job.sql", {
+#     input_name = var.stream_analytics_job_input_name,
+#     output_name = var.stream_analytics_job_output_name,
+#   })
+
+#   # content_storage_policy = "JobStorageAccount"
+#   # job_storage_account {
+#   #   account_key = azurerm_storage_account.events.primary_access_key
+#   #   account_name = azurerm_storage_account.events.name
+#   # }
+#   # TODO: Add pricing StandardV2 once this is supported by Terraform
+#   # TODO: Add virtual network configuration once this is supported by Terraform
+# }
+
+# resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
+#   name                      = var.stream_analytics_job_input_name
+#   stream_analytics_job_id   = azurerm_stream_analytics_job.this.id
+#   eventhub_name             = azurerm_eventhub.this.name
+#   servicebus_namespace      = azurerm_eventhub_namespace.this.name
+#   shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
+#   shared_access_policy_name = "RootManageSharedAccessKey"
+
+#   serialization {
+#     type     = "Json"
+#     encoding = "UTF8"
+#   }
+# }
 
 # Output Blob for the Stream Analytics Job
-resource "azurerm_stream_analytics_output_blob" "this" {
-  name                      = "output-to-blob-storage"
-  resource_group_name       = azurerm_resource_group.this.name
-  stream_analytics_job_name = azurerm_stream_analytics_job.this.name
-  date_format               = "yyyy-MM-dd"
-  path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
-  storage_account_name      = azurerm_storage_account.events.name
-  storage_account_key       = azurerm_storage_account.events.primary_access_key
-  storage_container_name    = "decoded-messages-test123"
-  time_format               = "HH"
+# resource "azurerm_stream_analytics_output_blob" "this" {
+#   name                      = var.stream_analytics_job_output_name
+#   resource_group_name       = azurerm_resource_group.this.name
+#   stream_analytics_job_name = azurerm_stream_analytics_job.this.name
+#   date_format               = "yyyy-MM-dd"
+#   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
+#   storage_account_name      = azurerm_storage_account.events.name
+#   storage_account_key       = azurerm_storage_account.events.primary_access_key
+#   storage_container_name    = "output-to-blob-storage" # MIGHT HAVE TO CHANGE THIS ONE TO THE OUTPUT_NAME, WE'LL SEE
+#   time_format               = "HH"
 
-  serialization {
-    type     = "Json"
-    encoding = "UTF8"
-    format   = "Array"
-  }
-}
+#   serialization {
+#     type     = "Json"
+#     encoding = "UTF8"
+#     format   = "Array"
+#   }
+# }
 
 # Stream Analytics Job Scheduler
-resource "azurerm_stream_analytics_job_schedule" "this" {
-  stream_analytics_job_id = azurerm_stream_analytics_job.this.id
-  start_mode              = "JobStartTime"
+# resource "azurerm_stream_analytics_job_schedule" "this" {
+#   stream_analytics_job_id = azurerm_stream_analytics_job.this.id
+#   start_mode              = "JobStartTime"
 
-  depends_on = [
-    azurerm_stream_analytics_job.this,
-    azurerm_stream_analytics_stream_input_eventhub_v2.this,
-    azurerm_stream_analytics_output_blob.this,
-  ]
-}
+#   depends_on = [
+#     azurerm_stream_analytics_job.this,
+#     azurerm_stream_analytics_stream_input_eventhub_v2.this,
+#     azurerm_stream_analytics_output_blob.this,
+#   ]
+# }

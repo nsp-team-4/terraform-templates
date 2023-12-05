@@ -36,3 +36,18 @@ variable "stream_analytics_job_name" {
   type        = string
   default     = "ais-stream-job"
 }
+
+# Stream analytics job input name
+variable "stream_analytics_job_input_name" {
+  description = "The name of the streaming job input."
+  type        = string
+  default     = "ais-stream-job-input"
+}
+
+
+# Stream analytics job output name
+variable "stream_analytics_job_output_name" {
+  description = "The name of the streaming job output."
+  type        = string
+  default     = "ais-stream-job-output"
+}
