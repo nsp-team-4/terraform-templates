@@ -356,8 +356,9 @@ resource "azurerm_subnet" "stream" {
 }
 
 # Stream Analytics Job
-# TODO: Somehow add the virtual network configuration
 resource "azapi_resource" "this" {
+  # The latest API provider is the 2021-10-01-preview, while the Virtual Network has been released in June of 2023.
+  # This is why it's not possible to enable the Virtual Network for the Stream Analytics Job from Terraform.
   type      = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
   name      = "stream-ais-job"
   parent_id = azurerm_resource_group.this.id
@@ -369,6 +370,7 @@ resource "azapi_resource" "this" {
 
   body = jsonencode({
     properties = {
+      compatibilityLevel   = "1.2"
       contentStoragePolicy = "JobStorageAccount"
       externals = {
         container = "test-container"
@@ -383,11 +385,12 @@ resource "azapi_resource" "this" {
         accountName        = azurerm_storage_account.events.name
         authenticationMode = "Msi"
       }
-      sku = { # TODO: Replace this with two variables, one for the capacity, and one for the sku that references the capacity.
-        capacity = 3
+      sku = {
+        capacity = var.stream_analytics_job_capacity
         name     = "StandardV2"
       }
       transformation = null
+      # The code below is commented out because this only works when the Virtual Network is enabled for the Stream Analytics Job.
       # transformation = {
       #   name = "ais-transformation",
       #   properties = {
@@ -395,12 +398,12 @@ resource "azapi_resource" "this" {
       #       input_name  = var.stream_analytics_job_input_name,
       #       output_name = var.stream_analytics_job_output_name,
       #     }),
-      #     streamingUnits = 3, # TODO: Replace this with a variable
+      #     streamingUnits = var.stream_analytics_job_capacity,
       #   }
       # }
     }
-    sku = { # TODO: Replace this with the same variable
-      capacity = 3
+    sku = {
+      capacity = var.stream_analytics_job_capacity
       name     = "StandardV2"
     }
   })
@@ -411,13 +414,13 @@ resource "azapi_resource" "this" {
   ]
 }
 
-output "test_id" {
-  value = jsondecode(azapi_resource.this.output).id
-}
+# output "test_id" {
+#   value = jsondecode(azapi_resource.this.output).id
+# }
 
-output "test_name" {
-  value = jsondecode(azapi_resource.this.output).name
-}
+# output "test_name" {
+#   value = jsondecode(azapi_resource.this.output).name
+# }
 
 # Stream Analytics Job Input
 # resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
