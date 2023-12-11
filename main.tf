@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.83.0"
+      version = "~> 3.84.0"
     }
     azapi = {
       source  = "azure/azapi"
@@ -201,6 +201,17 @@ resource "azurerm_eventhub" "this" {
   message_retention   = 1
 }
 
+# Client config
+data "azurerm_client_config" "this" {
+}
+
+# Storage Account Role Assignment
+resource "azurerm_role_assignment" "storage_blob_data_contributor" {
+  scope                = azurerm_storage_account.events.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.this.object_id
+}
+
 # Events subnet
 resource "azurerm_subnet" "events" {
   name = "events"
@@ -376,39 +387,21 @@ resource "azapi_resource" "this" {
         name     = "StandardV2"
       }
       transformation = null
-      # TODO: Find a way to add this properly later on (maybe using depends_on, idk yet).
-      # transformation = {
-      #   name = "ais-transformation",
-      #   properties = {
-      #     query = templatefile("./sql/stream-analytics-job.sql", {
-      #       input_name  = var.stream_analytics_job_input_name,
-      #       output_name = var.stream_analytics_job_output_name,
-      #     }),
-      #     streamingUnits = var.stream_analytics_job_capacity,
-      #   }
-      # }
     }
     sku = {
       capacity = var.stream_analytics_job_capacity
       name     = "StandardV2"
     }
   })
-
+  
   response_export_values = [
     "id",
     "name",
   ]
-
-  # TODO: Experiment with this and the transformation property.
-  # depends_on = [
-  #   azurerm_role_assignment.event_hubs_receiver_role,
-  #   azurerm_role_assignment.stream_blob_role,
-  #   azurerm_role_assignment.stream_table_role
-  # ]
 }
 
 # Add Azure Event Hubs Data Receiver role assignment to the Managed Identity of the Stream Analytics Job.
-resource "azurerm_role_assignment" "event_hubs_receiver_role" {
+resource "azurerm_role_assignment" "stream_event_hub_role" {
   scope                = azurerm_eventhub_namespace.this.id
   role_definition_name = "Azure Event Hubs Data Receiver"
   principal_id         = azapi_resource.this.identity[0].principal_id
@@ -421,16 +414,58 @@ resource "azurerm_role_assignment" "stream_blob_role" {
   principal_id         = azapi_resource.this.identity[0].principal_id
 }
 
+# Add the Storage Queue Data Contributor role assignment to the Managed Identity of the Stream Analytics Job.
 resource "azurerm_role_assignment" "stream_table_role" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Table Data Contributor"
   principal_id         = azapi_resource.this.identity[0].principal_id
 }
 
+# Now update the Stream Analytics Job with the correct transformation.
+resource "azapi_update_resource" "this" {
+  type      = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
+  resource_id = replace(jsondecode(azapi_resource.this.output).id, "streamingjobs", "streamingJobs")
+  body = jsonencode({
+    properties = {
+      externals = {
+        container = var.stream_analytics_job_output_name
+        path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
+        storageAccount = {
+          accountKey         = azurerm_storage_account.events.primary_access_key
+          accountName        = azurerm_storage_account.events.name
+          authenticationMode = "Msi"
+        }
+      }
+      transformation = {
+        name = "main",
+        properties = {
+          query = templatefile("./sql/stream-analytics-job.sql", {
+            input_name  = var.stream_analytics_job_input_name,
+            output_name = var.stream_analytics_job_output_name,
+          }),
+          streamingUnits = var.stream_analytics_job_capacity,
+        }
+      }
+    }
+  })
+  
+  response_export_values = [
+    "id",
+    "name",
+  ]
+  
+  depends_on = [
+    azapi_resource.this,
+    azurerm_role_assignment.stream_event_hub_role,
+    azurerm_role_assignment.stream_blob_role,
+    azurerm_role_assignment.stream_table_role,
+  ]
+}
+
 # Stream Analytics Job Input
 resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
   name                      = var.stream_analytics_job_input_name
-  stream_analytics_job_id   = replace(jsondecode(azapi_resource.this.output).id, "streamingjobs", "streamingJobs")
+  stream_analytics_job_id   = replace(jsondecode(azapi_update_resource.this.output).id, "streamingjobs", "streamingJobs")
   eventhub_name             = azurerm_eventhub.this.name
   servicebus_namespace      = azurerm_eventhub_namespace.this.name
   authentication_mode       = "Msi"
@@ -447,7 +482,7 @@ resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
 resource "azurerm_stream_analytics_output_blob" "this" {
   name                      = var.stream_analytics_job_output_name
   resource_group_name       = azurerm_resource_group.this.name
-  stream_analytics_job_name = jsondecode(azapi_resource.this.output).name
+  stream_analytics_job_name = jsondecode(azapi_update_resource.this.output).name
   date_format               = "yyyy-MM-dd"
   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
   time_format               = "HH"

@@ -48,5 +48,5 @@ variable "stream_analytics_job_output_name" {
 variable "stream_analytics_job_capacity" {
   description = "The number of streaming units that the streaming job uses."
   type        = number
-  default     = 3
+  default     = 10
 }
