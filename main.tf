@@ -268,7 +268,7 @@ resource "azurerm_private_endpoint" "events" {
 }
 
 # Storage account for the Event Hub Namespace
-resource "azurerm_storage_account" "events"   {
+resource "azurerm_storage_account" "events" {
   name                      = var.storage_account_name
   resource_group_name       = azurerm_resource_group.this.name
   location                  = azurerm_resource_group.this.location
@@ -336,7 +336,7 @@ data "azurerm_client_config" "this" {
 }
 
 # Event Hub storage account role assignment
-resource "azurerm_role_assignment" "storage_blob_data_contributor" {
+resource "azurerm_role_assignment" "events_storage_blob_data_contributor" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.this.object_id
@@ -425,28 +425,41 @@ resource "azapi_resource" "this" {
   ]
 }
 
-# output "test_id" {
-#   value = jsondecode(azapi_resource.this.output).id
-# }
+# Add Azure Event Hubs Data Receiver role assignment to the Managed Identity of the Stream Analytics Job.
+resource "azurerm_role_assignment" "event_hubs_data_receiver" {
+  scope                = azurerm_eventhub_namespace.this.id
+  role_definition_name = "Azure Event Hubs Data Receiver"
+  principal_id         = azapi_resource.this.identity[0].principal_id
+}
 
-# output "test_name" {
-#   value = jsondecode(azapi_resource.this.output).name
-# }
+# Add the Storage Blob Data Contributor role assignment to the Managed Identity of the Stream Analytics Job.
+resource "azurerm_role_assignment" "stream_storage_blob_data_contributor" {
+  scope                = azurerm_storage_account.events.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azapi_resource.this.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "stream_storage_table_data_contributor" {
+  scope                = azurerm_storage_account.events.id
+  role_definition_name = "Storage Table Data Contributor"
+  principal_id         = azapi_resource.this.identity[0].principal_id
+}
 
 # Stream Analytics Job Input
-# resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
-#   name                      = var.stream_analytics_job_input_name
-#   stream_analytics_job_id   = jsondecode(azapi_resource.this.output).id
-#   eventhub_name             = azurerm_eventhub.this.name
-#   servicebus_namespace      = azurerm_eventhub_namespace.this.name
-#   shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
-#   shared_access_policy_name = "RootManageSharedAccessKey"
+resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
+  name                      = var.stream_analytics_job_input_name
+  stream_analytics_job_id   = replace(jsondecode(azapi_resource.this.output).id, "streamingjobs", "streamingJobs")
+  eventhub_name             = azurerm_eventhub.this.name
+  servicebus_namespace      = azurerm_eventhub_namespace.this.name
+  authentication_mode       = "Msi"
+  shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
+  shared_access_policy_name = "RootManageSharedAccessKey"
 
-#   serialization {
-#     type     = "Json"
-#     encoding = "UTF8"
-#   }
-# }
+  serialization {
+    type     = "Json"
+    encoding = "UTF8"
+  }
+}
 
 # Output Blob for the Stream Analytics Job
 # resource "azurerm_stream_analytics_output_blob" "this" {
@@ -455,10 +468,11 @@ resource "azapi_resource" "this" {
 #   stream_analytics_job_name = jsondecode(azapi_resource.this.output).name
 #   date_format               = "yyyy-MM-dd"
 #   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
+#   time_format               = "HH"
 #   storage_account_name      = azurerm_storage_account.events.name
+#   authentication_mode       = "Msi"
 #   storage_account_key       = azurerm_storage_account.events.primary_access_key
 #   storage_container_name    = var.stream_analytics_job_output_name
-#   time_format               = "HH"
 
 #   serialization {
 #     type     = "Json"
@@ -467,7 +481,7 @@ resource "azapi_resource" "this" {
 #   }
 # }
 
-# Stream Analytics Job Scheduler
+# Stream Analytics Job Scheduler (probably not possible because can't use the virtual network)
 # resource "azurerm_stream_analytics_job_schedule" "this" {
 #   stream_analytics_job_id = azurerm_stream_analytics_job.this.id
 #   start_mode              = "JobStartTime"
