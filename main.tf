@@ -336,7 +336,7 @@ data "azurerm_client_config" "this" {
 }
 
 # Event Hub storage account role assignment
-resource "azurerm_role_assignment" "events_storage_blob_data_contributor" {
+resource "azurerm_role_assignment" "event_blob_role" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.this.object_id
@@ -400,18 +400,16 @@ resource "azapi_resource" "this" {
         capacity = var.stream_analytics_job_capacity
         name     = "StandardV2"
       }
-      transformation = null
-      # The code below is commented out because this only works when the Virtual Network is enabled for the Stream Analytics Job.
-      # transformation = {
-      #   name = "ais-transformation",
-      #   properties = {
-      #     query = templatefile("./sql/stream-analytics-job.sql", {
-      #       input_name  = var.stream_analytics_job_input_name,
-      #       output_name = var.stream_analytics_job_output_name,
-      #     }),
-      #     streamingUnits = var.stream_analytics_job_capacity,
-      #   }
-      # }
+      transformation = {
+        name = "ais-transformation",
+        properties = {
+          query = templatefile("./sql/stream-analytics-job.sql", {
+            input_name  = var.stream_analytics_job_input_name,
+            output_name = var.stream_analytics_job_output_name,
+          }),
+          streamingUnits = var.stream_analytics_job_capacity,
+        }
+      }
     }
     sku = {
       capacity = var.stream_analytics_job_capacity
@@ -426,20 +424,20 @@ resource "azapi_resource" "this" {
 }
 
 # Add Azure Event Hubs Data Receiver role assignment to the Managed Identity of the Stream Analytics Job.
-resource "azurerm_role_assignment" "event_hubs_data_receiver" {
+resource "azurerm_role_assignment" "event_hubs_receiver_role" {
   scope                = azurerm_eventhub_namespace.this.id
   role_definition_name = "Azure Event Hubs Data Receiver"
   principal_id         = azapi_resource.this.identity[0].principal_id
 }
 
 # Add the Storage Blob Data Contributor role assignment to the Managed Identity of the Stream Analytics Job.
-resource "azurerm_role_assignment" "stream_storage_blob_data_contributor" {
+resource "azurerm_role_assignment" "stream_blob_role" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azapi_resource.this.identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "stream_storage_table_data_contributor" {
+resource "azurerm_role_assignment" "stream_table_role" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Table Data Contributor"
   principal_id         = azapi_resource.this.identity[0].principal_id
@@ -462,33 +460,21 @@ resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
 }
 
 # Output Blob for the Stream Analytics Job
-# resource "azurerm_stream_analytics_output_blob" "this" {
-#   name                      = var.stream_analytics_job_output_name
-#   resource_group_name       = azurerm_resource_group.this.name
-#   stream_analytics_job_name = jsondecode(azapi_resource.this.output).name
-#   date_format               = "yyyy-MM-dd"
-#   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
-#   time_format               = "HH"
-#   storage_account_name      = azurerm_storage_account.events.name
-#   authentication_mode       = "Msi"
-#   storage_account_key       = azurerm_storage_account.events.primary_access_key
-#   storage_container_name    = var.stream_analytics_job_output_name
+resource "azurerm_stream_analytics_output_blob" "this" {
+  name                      = var.stream_analytics_job_output_name
+  resource_group_name       = azurerm_resource_group.this.name
+  stream_analytics_job_name = jsondecode(azapi_resource.this.output).name
+  date_format               = "yyyy-MM-dd"
+  path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
+  time_format               = "HH"
+  storage_account_name      = azurerm_storage_account.events.name
+  authentication_mode       = "Msi"
+  storage_account_key       = azurerm_storage_account.events.primary_access_key
+  storage_container_name    = var.stream_analytics_job_output_name
 
-#   serialization {
-#     type     = "Json"
-#     encoding = "UTF8"
-#     format   = "Array"
-#   }
-# }
-
-# Stream Analytics Job Scheduler (probably not possible because can't use the virtual network)
-# resource "azurerm_stream_analytics_job_schedule" "this" {
-#   stream_analytics_job_id = azurerm_stream_analytics_job.this.id
-#   start_mode              = "JobStartTime"
-
-#   depends_on = [
-#     azurerm_stream_analytics_job.this,
-#     azurerm_stream_analytics_stream_input_eventhub_v2.this,
-#     azurerm_stream_analytics_output_blob.this,
-#   ]
-# }
+  serialization {
+    type     = "Json"
+    encoding = "UTF8"
+    format   = "LineSeparated"
+  }
+}
