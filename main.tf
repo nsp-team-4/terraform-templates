@@ -335,12 +335,13 @@ resource "azurerm_private_endpoint" "storage" {
 data "azurerm_client_config" "this" {
 }
 
-# Storage Account Role Assignment
+# Event Hub storage account role assignment
 resource "azurerm_role_assignment" "storage_blob_data_contributor" {
   scope                = azurerm_storage_account.events.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.this.object_id
 }
+
 # Stream Analytics subnet
 resource "azurerm_subnet" "stream" {
   name = "stream"
