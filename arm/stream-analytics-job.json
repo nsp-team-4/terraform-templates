@@ -1,0 +1,82 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "sku": {
+            "type": "string",
+            "defaultValue": "StandardV2"
+        },
+        "jobType": {
+            "type": "string",
+            "defaultValue": "Cloud"
+        },
+        "contentStoragePolicy": {
+            "type": "string",
+            "defaultValue": "SystemAccount"
+        },
+        "compatibilityLevel": {
+            "type": "string",
+            "defaultValue": "1.2"
+        },
+        "jobStorageAccount": {
+            "type": "object",
+            "defaultValue": {}
+        },
+        "transformation": {
+            "type": "object",
+            "defaultValue": {}
+        },
+        "enableMsi": {
+            "type": "bool",
+            "defaultValue": true
+        },
+        "addStorage": {
+            "type": "bool",
+            "defaultValue": false
+        },
+        "addTransformation": {
+            "type": "bool",
+            "defaultValue": false
+        },
+        "identity": {
+            "type": "object",
+            "defaultValue": {
+                "type": "SystemAssigned"
+            }
+        },
+        "tags": {
+            "type": "object"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.StreamAnalytics/streamingjobs",
+            "apiVersion": "2021-10-01-preview",
+            "name": "[parameters('name')]",
+            "location": "[parameters('location')]",
+            "tags": {},
+            "identity": "[if(parameters('enableMsi'), parameters('identity'), json('null'))]",
+            "properties": {
+                "sku": {
+                    "name": "[parameters('sku')]"
+                },
+                "outputErrorPolicy": "Stop",
+                "eventsOutOfOrderPolicy": "Adjust",
+                "eventsOutOfOrderMaxDelayInSeconds": 0,
+                "eventsLateArrivalMaxDelayInSeconds": 5,
+                "contentStoragePolicy": "[parameters('contentStoragePolicy')]",
+                "jobType": "[parameters('jobType')]",
+                "dataLocale": "en-US",
+                "transformation": "[if(parameters('addTransformation'), parameters('transformation'), json('null'))]",
+                "jobStorageAccount": "[if(parameters('addStorage'), parameters('jobStorageAccount'), json('null'))]",
+                "compatibilityLevel": "[parameters('compatibilityLevel')]"
+            }
+        }
+    ]
+}

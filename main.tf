@@ -2,7 +2,11 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.80.0"
+      version = "~> 3.83.0"
+    }
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 1.10.0"
     }
   }
 
@@ -136,6 +140,7 @@ resource "azurerm_public_ip" "this" {
 resource "azurerm_virtual_network" "this" {
   address_space = [
     "10.0.0.0/16",
+    "10.1.0.0/16", # TODO: Is this necessary? (Stream Analytics)
   ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
@@ -179,6 +184,10 @@ resource "azurerm_eventhub_namespace" "this" {
 
     virtual_network_rule {
       subnet_id = azurerm_subnet.events.id
+    }
+
+    virtual_network_rule {
+      subnet_id = azurerm_subnet.stream.id
     }
   }
 }
@@ -332,3 +341,139 @@ resource "azurerm_role_assignment" "storage_blob_data_contributor" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.this.object_id
 }
+# Stream Analytics subnet
+resource "azurerm_subnet" "stream" {
+  name = "stream"
+  address_prefixes = [
+    "10.1.0.0/24",
+  ]
+  resource_group_name  = azurerm_resource_group.this.name
+  virtual_network_name = azurerm_virtual_network.this.name
+  service_endpoints = [
+    "Microsoft.EventHub",
+  ]
+
+  delegation {
+    name = "Microsoft.StreamAnalytics/streamingJobs"
+
+    service_delegation {
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action",
+      ]
+      name = "Microsoft.StreamAnalytics/streamingJobs"
+    }
+  }
+}
+
+# Stream Analytics Job
+resource "azapi_resource" "this" {
+  # The latest API provider is the 2021-10-01-preview, while the Virtual Network has been released in June of 2023.
+  # This is why it's not possible to enable the Virtual Network for the Stream Analytics Job from Terraform.
+  type      = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
+  name      = "stream-ais-job"
+  parent_id = azurerm_resource_group.this.id
+  location  = azurerm_resource_group.this.location
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  body = jsonencode({
+    properties = {
+      compatibilityLevel   = "1.2"
+      contentStoragePolicy = "JobStorageAccount"
+      externals = {
+        container = "test-container"
+        path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
+        storageAccount = {
+          accountKey         = azurerm_storage_account.events.primary_access_key
+          accountName        = azurerm_storage_account.events.name
+          authenticationMode = "Msi"
+        }
+      }
+      jobStorageAccount = {
+        accountName        = azurerm_storage_account.events.name
+        authenticationMode = "Msi"
+      }
+      sku = {
+        capacity = var.stream_analytics_job_capacity
+        name     = "StandardV2"
+      }
+      transformation = null
+      # The code below is commented out because this only works when the Virtual Network is enabled for the Stream Analytics Job.
+      # transformation = {
+      #   name = "ais-transformation",
+      #   properties = {
+      #     query = templatefile("./sql/stream-analytics-job.sql", {
+      #       input_name  = var.stream_analytics_job_input_name,
+      #       output_name = var.stream_analytics_job_output_name,
+      #     }),
+      #     streamingUnits = var.stream_analytics_job_capacity,
+      #   }
+      # }
+    }
+    sku = {
+      capacity = var.stream_analytics_job_capacity
+      name     = "StandardV2"
+    }
+  })
+
+  response_export_values = [
+    "id",
+    "name",
+  ]
+}
+
+# output "test_id" {
+#   value = jsondecode(azapi_resource.this.output).id
+# }
+
+# output "test_name" {
+#   value = jsondecode(azapi_resource.this.output).name
+# }
+
+# Stream Analytics Job Input
+# resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
+#   name                      = var.stream_analytics_job_input_name
+#   stream_analytics_job_id   = jsondecode(azapi_resource.this.output).id
+#   eventhub_name             = azurerm_eventhub.this.name
+#   servicebus_namespace      = azurerm_eventhub_namespace.this.name
+#   shared_access_policy_key  = azurerm_eventhub_namespace.this.default_primary_key
+#   shared_access_policy_name = "RootManageSharedAccessKey"
+
+#   serialization {
+#     type     = "Json"
+#     encoding = "UTF8"
+#   }
+# }
+
+# Output Blob for the Stream Analytics Job
+# resource "azurerm_stream_analytics_output_blob" "this" {
+#   name                      = var.stream_analytics_job_output_name
+#   resource_group_name       = azurerm_resource_group.this.name
+#   stream_analytics_job_name = jsondecode(azapi_resource.this.output).name
+#   date_format               = "yyyy-MM-dd"
+#   path_pattern              = "{datetime:yyyy}/{datetime:MM}/{datetime:dd}/{datetime:HH}"
+#   storage_account_name      = azurerm_storage_account.events.name
+#   storage_account_key       = azurerm_storage_account.events.primary_access_key
+#   storage_container_name    = var.stream_analytics_job_output_name
+#   time_format               = "HH"
+
+#   serialization {
+#     type     = "Json"
+#     encoding = "UTF8"
+#     format   = "Array"
+#   }
+# }
+
+# Stream Analytics Job Scheduler
+# resource "azurerm_stream_analytics_job_schedule" "this" {
+#   stream_analytics_job_id = azurerm_stream_analytics_job.this.id
+#   start_mode              = "JobStartTime"
+
+#   depends_on = [
+#     azurerm_stream_analytics_job.this,
+#     azurerm_stream_analytics_stream_input_eventhub_v2.this,
+#     azurerm_stream_analytics_output_blob.this,
+#   ]
+# }
