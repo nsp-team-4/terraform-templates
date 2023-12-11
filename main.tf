@@ -375,18 +375,18 @@ resource "azapi_resource" "this" {
         capacity = var.stream_analytics_job_capacity
         name     = "StandardV2"
       }
-      # transformation = null
-      # TODO: Find a way to add this properly later on.
-      transformation = {
-        name = "ais-transformation",
-        properties = {
-          query = templatefile("./sql/stream-analytics-job.sql", {
-            input_name  = var.stream_analytics_job_input_name,
-            output_name = var.stream_analytics_job_output_name,
-          }),
-          streamingUnits = var.stream_analytics_job_capacity,
-        }
-      }
+      transformation = null
+      # TODO: Find a way to add this properly later on (maybe using depends_on, idk yet).
+      # transformation = {
+      #   name = "ais-transformation",
+      #   properties = {
+      #     query = templatefile("./sql/stream-analytics-job.sql", {
+      #       input_name  = var.stream_analytics_job_input_name,
+      #       output_name = var.stream_analytics_job_output_name,
+      #     }),
+      #     streamingUnits = var.stream_analytics_job_capacity,
+      #   }
+      # }
     }
     sku = {
       capacity = var.stream_analytics_job_capacity
@@ -398,6 +398,13 @@ resource "azapi_resource" "this" {
     "id",
     "name",
   ]
+
+  # TODO: Experiment with this and the transformation property.
+  # depends_on = [
+  #   azurerm_role_assignment.event_hubs_receiver_role,
+  #   azurerm_role_assignment.stream_blob_role,
+  #   azurerm_role_assignment.stream_table_role
+  # ]
 }
 
 # Add Azure Event Hubs Data Receiver role assignment to the Managed Identity of the Stream Analytics Job.
