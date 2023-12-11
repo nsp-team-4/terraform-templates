@@ -199,20 +199,6 @@ resource "azurerm_eventhub" "this" {
   resource_group_name = azurerm_resource_group.this.name
   partition_count     = 1
   message_retention   = 1
-
-  # capture_description {
-  #   enabled             = true
-  #   encoding            = "Avro"
-  #   interval_in_seconds = 60
-  #   size_limit_in_bytes = 62914560
-
-  #   destination {
-  #     archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
-  #     blob_container_name = "decoded-messages"
-  #     name                = "EventHubArchive.AzureBlockBlob"
-  #     storage_account_id  = azurerm_storage_account.events.id
-  #   }
-  # }
 }
 
 # Events subnet
@@ -329,17 +315,6 @@ resource "azurerm_private_endpoint" "storage" {
       azurerm_private_dns_zone.storage.id,
     ]
   }
-}
-
-# Client config
-data "azurerm_client_config" "this" {
-}
-
-# Event Hub storage account role assignment
-resource "azurerm_role_assignment" "event_blob_role" {
-  scope                = azurerm_storage_account.events.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.this.object_id
 }
 
 # Stream Analytics subnet
