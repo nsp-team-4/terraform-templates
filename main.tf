@@ -200,19 +200,19 @@ resource "azurerm_eventhub" "this" {
   partition_count     = 1
   message_retention   = 1
 
-  capture_description {
-    enabled             = true
-    encoding            = "Avro"
-    interval_in_seconds = 60
-    size_limit_in_bytes = 62914560
+  # capture_description {
+  #   enabled             = true
+  #   encoding            = "Avro"
+  #   interval_in_seconds = 60
+  #   size_limit_in_bytes = 62914560
 
-    destination {
-      archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
-      blob_container_name = "decoded-messages"
-      name                = "EventHubArchive.AzureBlockBlob"
-      storage_account_id  = azurerm_storage_account.events.id
-    }
-  }
+  #   destination {
+  #     archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
+  #     blob_container_name = "decoded-messages"
+  #     name                = "EventHubArchive.AzureBlockBlob"
+  #     storage_account_id  = azurerm_storage_account.events.id
+  #   }
+  # }
 }
 
 # Events subnet
@@ -384,7 +384,7 @@ resource "azapi_resource" "this" {
       compatibilityLevel   = "1.2"
       contentStoragePolicy = "JobStorageAccount"
       externals = {
-        container = "test-container"
+        container = var.stream_analytics_job_output_name
         path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
         storageAccount = {
           accountKey         = azurerm_storage_account.events.primary_access_key
@@ -400,6 +400,8 @@ resource "azapi_resource" "this" {
         capacity = var.stream_analytics_job_capacity
         name     = "StandardV2"
       }
+      # transformation = null
+      # TODO: Find a way to add this properly later on.
       transformation = {
         name = "ais-transformation",
         properties = {
