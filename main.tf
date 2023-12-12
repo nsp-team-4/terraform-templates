@@ -140,7 +140,7 @@ resource "azurerm_public_ip" "this" {
 resource "azurerm_virtual_network" "this" {
   address_space = [
     "10.0.0.0/16",
-    "10.1.0.0/16", # TODO: Is this necessary? (Stream Analytics)
+    "10.1.0.0/16",
   ]
   location            = azurerm_resource_group.this.location
   name                = "north-sea-port-vnet"
@@ -272,7 +272,7 @@ resource "azurerm_storage_account" "events" {
 
   network_rules {
     default_action = "Deny"
-    ip_rules       = var.allowed_ips # TODO: Check if there is another way to do this, because this is not the most secure way to give NSP access to the data (e.g. Event Hub).
+    ip_rules       = var.allowed_ips
     virtual_network_subnet_ids = [
       azurerm_subnet.events.id,
     ]
