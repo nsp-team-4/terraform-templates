@@ -20,7 +20,7 @@ provider "azurerm" {
 
 # Resource group
 resource "azurerm_resource_group" "this" {
-  name     = "north-sea-port"
+  name     = "north-sea-port-hz"
   location = "westeurope"
 }
 
@@ -199,17 +199,6 @@ resource "azurerm_eventhub" "this" {
   resource_group_name = azurerm_resource_group.this.name
   partition_count     = 1
   message_retention   = 1
-}
-
-# Client config
-data "azurerm_client_config" "this" {
-}
-
-# Storage Account Role Assignment
-resource "azurerm_role_assignment" "storage_blob_data_contributor" {
-  scope                = azurerm_storage_account.events.id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.this.object_id
 }
 
 # Events subnet
