@@ -50,3 +50,6 @@ variable "stream_analytics_job_capacity" {
   type        = number
   default     = 10
 }
+
+# adf -> Azure Data Factory
+# rg -> Resource Group
