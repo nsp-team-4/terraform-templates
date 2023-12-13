@@ -1,6 +1,5 @@
-# Allowed IP prefixes (CIDR notation)
 variable "allowed_ips" {
-  description = "The IP prefixes that are allowed to connect to the AIS receiver container."
+  description = "The IP prefixes (CIDR notation) that are allowed to connect to the AIS receiver container."
   type        = list(string)
   default = [
     "86.92.2.242",     # Home
@@ -48,7 +47,7 @@ variable "stream_analytics_job_output_name" {
 variable "stream_analytics_job_capacity" {
   description = "The number of streaming units that the streaming job uses."
   type        = number
-  default     = 10
+  default     = 10 # A minimum of 10 streaming units is required to run in a virtual network.
 }
 
 variable "stream_analytics_api_version" {

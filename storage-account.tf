@@ -1,4 +1,3 @@
-
 # Storage account for the Event Hub Namespace
 resource "azurerm_storage_account" "events" {
   name                      = var.storage_account_name

@@ -1,7 +1,8 @@
+# One day this file can be refactored massively once the azurerm provider supports the new Stream Analytics API. 
 # Stream Analytics Job
 resource "azapi_resource" "this" {
   type      = var.stream_analytics_api_version
-  name      = "stream-ais-job-2"
+  name      = "stream-ais-job"
   parent_id = azurerm_resource_group.this.id
   location  = azurerm_resource_group.this.location
 
@@ -82,6 +83,7 @@ resource "azapi_update_resource" "this" {
         path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
         storageAccount = {
           accountKey         = azurerm_storage_account.events.primary_access_key
+          accountName        = azurerm_storage_account.events.name
           authenticationMode = "Msi"
         }
       }
@@ -127,7 +129,7 @@ resource "azapi_resource_action" "this" {
   ]
 }
 
-# Stream Analytics Job Input
+# Stream Analytics Job Input from Event Hub
 resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
   name                      = var.stream_analytics_job_input_name
   stream_analytics_job_id   = replace(jsondecode(azapi_update_resource.this.output).id, "streamingjobs", "streamingJobs")
@@ -143,7 +145,7 @@ resource "azurerm_stream_analytics_stream_input_eventhub_v2" "this" {
   }
 }
 
-# Output Blob for the Stream Analytics Job
+# Output Blob storage for the Stream Analytics Job
 resource "azurerm_stream_analytics_output_blob" "this" {
   name                      = var.stream_analytics_job_output_name
   resource_group_name       = azurerm_resource_group.this.name
@@ -161,4 +163,14 @@ resource "azurerm_stream_analytics_output_blob" "this" {
     encoding = "UTF8"
     format   = "LineSeparated"
   }
+}
+
+# Start the Stream Analytics Job
+resource "azurerm_stream_analytics_job_schedule" "this" {
+  stream_analytics_job_id = replace(jsondecode(azapi_update_resource.this.output).id, "streamingjobs", "streamingJobs")
+  start_mode = "JobStartTime"
+
+  depends_on = [
+    azapi_resource_action.this,
+  ]
 }
