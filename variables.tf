@@ -51,5 +51,11 @@ variable "stream_analytics_job_capacity" {
   default     = 10
 }
 
+variable "stream_analytics_api_version" {
+  description = "The API version of the stream analytics job."
+  type        = string
+  default     = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
+}
+
 # adf -> Azure Data Factory
 # rg -> Resource Group

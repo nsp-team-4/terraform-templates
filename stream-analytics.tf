@@ -1,9 +1,7 @@
 # Stream Analytics Job
 resource "azapi_resource" "this" {
-  # The latest API provider is the 2021-10-01-preview, while the Virtual Network has been released in June of 2023.
-  # This is why it's not possible to enable the Virtual Network for the Stream Analytics Job from Terraform.
-  type      = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
-  name      = "stream-ais-job"
+  type      = var.stream_analytics_api_version
+  name      = "stream-ais-job-2"
   parent_id = azurerm_resource_group.this.id
   location  = azurerm_resource_group.this.location
 
@@ -15,31 +13,37 @@ resource "azapi_resource" "this" {
     properties = {
       compatibilityLevel   = "1.2"
       contentStoragePolicy = "JobStorageAccount"
+
       externals = {
         container = var.stream_analytics_job_output_name
         path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
+
         storageAccount = {
           accountKey         = azurerm_storage_account.events.primary_access_key
           accountName        = azurerm_storage_account.events.name
           authenticationMode = "Msi"
         }
       }
+
       jobStorageAccount = {
         accountName        = azurerm_storage_account.events.name
         authenticationMode = "Msi"
       }
+
       sku = {
         capacity = var.stream_analytics_job_capacity
         name     = "StandardV2"
       }
+
       transformation = null
     }
+
     sku = {
       capacity = var.stream_analytics_job_capacity
       name     = "StandardV2"
     }
   })
-  
+
   response_export_values = [
     "id",
     "name",
@@ -69,7 +73,7 @@ resource "azurerm_role_assignment" "stream_table_role" {
 
 # Now update the Stream Analytics Job with the correct transformation.
 resource "azapi_update_resource" "this" {
-  type      = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
+  type        = var.stream_analytics_api_version
   resource_id = replace(jsondecode(azapi_resource.this.output).id, "streamingjobs", "streamingJobs")
   body = jsonencode({
     properties = {
@@ -78,10 +82,10 @@ resource "azapi_update_resource" "this" {
         path      = "year={datetime:yyyy}/month={datetime:MM}/day={datetime:dd}/hour={datetime:HH}"
         storageAccount = {
           accountKey         = azurerm_storage_account.events.primary_access_key
-          accountName        = azurerm_storage_account.events.name
           authenticationMode = "Msi"
         }
       }
+
       transformation = {
         name = "main",
         properties = {
@@ -94,17 +98,32 @@ resource "azapi_update_resource" "this" {
       }
     }
   })
-  
+
   response_export_values = [
     "id",
     "name",
   ]
-  
+
   depends_on = [
     azapi_resource.this,
     azurerm_role_assignment.stream_event_hub_role,
     azurerm_role_assignment.stream_blob_role,
     azurerm_role_assignment.stream_table_role,
+  ]
+}
+
+resource "azapi_resource_action" "this" {
+  type        = var.stream_analytics_api_version
+  resource_id = replace(jsondecode(azapi_update_resource.this.output).id, "streamingjobs", "streamingJobs")
+  method      = "PATCH"
+  body = jsonencode({
+    properties = {
+      subnetResourceId = azurerm_subnet.stream.id
+    }
+  })
+
+  depends_on = [
+    azapi_update_resource.this
   ]
 }
 
