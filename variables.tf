@@ -57,5 +57,11 @@ variable "stream_analytics_api_version" {
   default     = "Microsoft.StreamAnalytics/streamingJobs@2021-10-01-preview"
 }
 
+variable "container_port" {
+  description = "The port on which the container listens."
+  type        = number
+  default     = 2001
+}
+
 # adf -> Azure Data Factory
 # rg -> Resource Group
