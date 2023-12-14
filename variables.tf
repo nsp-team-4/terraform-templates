@@ -3,7 +3,8 @@ variable "allowed_ips" {
   type        = list(string)
   default = [
     "86.92.2.242",     # Home
-    "212.115.197.141", # NSP
+    "212.115.197.141", # NSP Location 1
+    "212.115.197.130", # NSP Location 2
     "145.19.248.127",  # School
   ]
 }
