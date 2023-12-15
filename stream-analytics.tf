@@ -163,10 +163,6 @@ resource "azurerm_stream_analytics_output_blob" "this" {
     encoding = "UTF8"
     format   = "LineSeparated"
   }
-
-  depends_on = [
-    azapi_update_resource.this,
-  ]
 }
 
 # Start the Stream Analytics Job
