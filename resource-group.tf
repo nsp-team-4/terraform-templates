@@ -1,5 +1,5 @@
 # Resource group
 resource "azurerm_resource_group" "this" {
-  name     = "north-sea-port-hz"
+  name     = local.resource_group_name
   location = "westeurope"
 }

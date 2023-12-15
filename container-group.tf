@@ -2,7 +2,7 @@
 resource "azurerm_container_group" "this" {
   ip_address_type     = "Private"
   location            = azurerm_resource_group.this.location
-  name                = "ais-receiver"
+  name                = local.container_name
   os_type             = "Linux"
   resource_group_name = azurerm_resource_group.this.name
   restart_policy      = "OnFailure"
@@ -15,7 +15,7 @@ resource "azurerm_container_group" "this" {
     cpu    = 1
     image  = "auxority/ais-receiver"
     memory = 1.5
-    name   = "ais-receiver"
+    name   = local.container_name
 
     environment_variables = {
       EVENT_HUB_NAME = azurerm_eventhub.this.name

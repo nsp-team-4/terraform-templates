@@ -1,12 +1,12 @@
 # Load balancer
 resource "azurerm_lb" "this" {
-  name                = "ais-load-balancer"
+  name                = "ais-load-balancer-${var.env_name}"
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   sku                 = "Standard"
 
   frontend_ip_configuration {
-    name                 = "ais-frontend-ip-config"
+    name                 = var.frontend_ip_name
     public_ip_address_id = azurerm_public_ip.this.id
   }
 }
@@ -14,9 +14,9 @@ resource "azurerm_lb" "this" {
 # Public IP
 resource "azurerm_public_ip" "this" {
   allocation_method   = "Static"
-  domain_name_label   = var.domain_name_label
+  domain_name_label   = local.domain_name_label
   location            = azurerm_resource_group.this.location
-  name                = "ais-public-ip"
+  name                = "ais-public-ip-${var.env_name}"
   resource_group_name = azurerm_resource_group.this.name
   sku                 = "Standard"
 }
@@ -40,7 +40,7 @@ resource "azurerm_lb_nat_rule" "this" {
   resource_group_name            = azurerm_resource_group.this.name
   backend_address_pool_id        = azurerm_lb_backend_address_pool.this.id
   backend_port                   = 2001
-  frontend_ip_configuration_name = "ais-frontend-ip-config"
+  frontend_ip_configuration_name = var.frontend_ip_name
   frontend_port_start            = 2001
   frontend_port_end              = 2001
   loadbalancer_id                = azurerm_lb.this.id

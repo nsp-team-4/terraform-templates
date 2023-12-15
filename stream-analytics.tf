@@ -2,7 +2,7 @@
 # Stream Analytics Job
 resource "azapi_resource" "this" {
   type      = var.stream_analytics_api_version
-  name      = "stream-ais-job"
+  name      = local.stream_analytics_job_name
   parent_id = azurerm_resource_group.this.id
   location  = azurerm_resource_group.this.location
 
@@ -168,7 +168,7 @@ resource "azurerm_stream_analytics_output_blob" "this" {
 # Start the Stream Analytics Job
 resource "azurerm_stream_analytics_job_schedule" "this" {
   stream_analytics_job_id = replace(jsondecode(azapi_update_resource.this.output).id, "streamingjobs", "streamingJobs")
-  start_mode = "JobStartTime"
+  start_mode              = "JobStartTime"
 
   depends_on = [
     azapi_resource_action.this,

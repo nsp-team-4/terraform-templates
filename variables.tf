@@ -1,3 +1,9 @@
+variable "env_name" {
+  description = "The environment in which the resources will be deployed. Will be used as a suffix for the resource names."
+  type        = string
+  default     = "test" # Options: test, prod
+}
+
 variable "allowed_ips" {
   description = "The IP prefixes (CIDR notation) that are allowed to connect to the AIS receiver container."
   type        = list(string)
@@ -9,28 +15,33 @@ variable "allowed_ips" {
   ]
 }
 
-variable "domain_name_label" {
-  description = "The domain name label for the public IP."
-  type        = string
-  default     = "ais-receiver"
+locals {
+  # The name of the resource group.
+  resource_group_name = "north-sea-port-${var.env_name}"
+
+  # The domain name label for the public IP address.
+  domain_name_label = "ais-receiver-${var.env_name}"
+
+  # The name of the container (group).
+  container_name = "ais-receiver-${var.env_name}"
+
+  # The name of the network security group.
+  network_security_group_name = "ais-network-security-group-${var.env_name}"
+
+  # The name of the storage account.
+  storage_account_name = "aisnspstorage${var.env_name}"
+
+  # The name of the Event Hub namespace.
+  eventhub_namespace_name = "ais-events-namespace-${var.env_name}"
+
+  # The name of the Stream Analytics job.
+  stream_analytics_job_name = "ais-stream-job-${var.env_name}"
 }
 
-variable "storage_account_name" {
-  description = "The name of the storage account for events."
+variable "frontend_ip_name" {
+  description = "The name of the frontend IP configuration."
   type        = string
-  default     = "aisnspstorage"
-}
-
-variable "eventhub_namespace_name" {
-  description = "The name of the event hub namespace."
-  type        = string
-  default     = "ais-events-namespace"
-}
-
-variable "stream_analytics_job_name" {
-  description = "The name of the streaming job."
-  type        = string
-  default     = "ais-stream-job"
+  default     = "ais-frontend-ip-config"
 }
 
 variable "stream_analytics_job_input_name" {

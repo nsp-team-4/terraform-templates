@@ -5,7 +5,7 @@ resource "azurerm_virtual_network" "this" {
     "10.1.0.0/16",
   ]
   location            = azurerm_resource_group.this.location
-  name                = "north-sea-port-vnet"
+  name                = "north-sea-port-vnet-${var.env_name}"
   resource_group_name = azurerm_resource_group.this.name
 }
 

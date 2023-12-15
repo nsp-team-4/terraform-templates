@@ -1,6 +1,6 @@
 # Event Hub Namespace
 resource "azurerm_eventhub_namespace" "this" {
-  name                = var.eventhub_namespace_name
+  name                = local.eventhub_namespace_name
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   sku                 = "Standard"
@@ -43,7 +43,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "events" {
 
 # Private endpoint for the Event Hub Namespace
 resource "azurerm_private_endpoint" "events" {
-  name                = "ais-events-endpoint"
+  name                = "ais-events-endpoint-${var.env_name}"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.events.id

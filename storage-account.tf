@@ -1,6 +1,6 @@
 # Storage account for the Event Hub Namespace
 resource "azurerm_storage_account" "events" {
-  name                      = var.storage_account_name
+  name                      = local.storage_account_name
   resource_group_name       = azurerm_resource_group.this.name
   location                  = azurerm_resource_group.this.location
   account_tier              = "Standard"
@@ -40,7 +40,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
 
 # Private endpoint for the Storage Account
 resource "azurerm_private_endpoint" "storage" {
-  name                = "ais-storage-endpoint"
+  name                = "ais-storage-endpoint-${var.env_name}"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
   subnet_id           = azurerm_subnet.events.id

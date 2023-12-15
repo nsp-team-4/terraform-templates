@@ -17,3 +17,7 @@ terraform {
 provider "azurerm" {
   features {}
 }
+
+# Configure the Azure API Provider
+provider "azapi" {
+}
