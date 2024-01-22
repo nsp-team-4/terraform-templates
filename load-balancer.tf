@@ -25,6 +25,9 @@ resource "azurerm_public_ip" "this" {
 resource "azurerm_lb_backend_address_pool" "this" {
   loadbalancer_id = azurerm_lb.this.id
   name            = "ais-backend-pool"
+  depends_on = [
+    azurerm_lb.this,
+  ]
 }
 
 # Backend pool address
@@ -33,6 +36,11 @@ resource "azurerm_lb_backend_address_pool_address" "this" {
   name                    = "container-group-address"
   virtual_network_id      = azurerm_virtual_network.this.id
   ip_address              = azurerm_container_group.this.ip_address
+
+  depends_on = [
+    azurerm_lb_backend_address_pool.this,
+    azurerm_resource_group.this,
+  ]
 }
 
 # Inbound NAT rule
